@@ -12,6 +12,8 @@
 
 package VC.Scanner;
 
+import javax.print.FlavorException;
+
 import VC.ErrorReporter;
 
 public final class Scanner {
@@ -23,6 +25,8 @@ public final class Scanner {
     private StringBuilder currentSpelling;
     private char currentChar;
     private SourcePosition sourcePos;
+    private int lineNum;
+    private int colNum;
 
     // =========================================================
 
@@ -31,11 +35,13 @@ public final class Scanner {
         errorReporter = reporter;
         debug = false;
 
-	// Initiaise currentChar for the starter code. 
-	// Change it if necessary for your full implementation
-	currentChar = sourceFile.getNextChar();
+        // Initiaise currentChar for the starter code. 
+        // Change it if necessary for your full implementation
+        currentChar = sourceFile.getNextChar();
 
         // Initialise your counters for counting line and column numbers here
+        lineNum = 1;
+        colNum = 1;
     }
 
     public void enableDebugging() {
@@ -48,7 +54,15 @@ public final class Scanner {
      	currentChar = sourceFile.getNextChar();
 
   	// You may save the lexeme of the current token incrementally here
+
+
   	// You may also increment your line and column counters here
+        if (currentChar == '\n') {
+            lineNum++;
+            colNum = 0;
+        } else {
+            colNum++;
+        }
     }
 
 
@@ -73,11 +87,81 @@ public final class Scanner {
             case '(':
                 accept();
                 return Token.LPAREN;
-            // ...
-            case '.':
-       	    //  Handle floats (by calling auxiliary functions)
+            case ')':
+                accept();
+                return Token.RPAREN;
+            case '[':
+                accept();
+                return Token.LBRACKET;
+            case ']':
+                accept();
+                return Token.RBRACKET;
+            case '{':
+                accept();
+                return Token.LCURLY;
+            case '}':
+                accept();
+                return Token.RCURLY;
+            case ';':
+                accept();
+                return Token.SEMICOLON;
+            case ',':
+                accept();
+                return Token.COMMA;
 
-            // Handle separators
+            // Handle operators
+            case '+':
+                accept();
+                return Token.PLUS;
+            case '-':
+                accept();
+                return Token.MINUS;
+            case '*':
+                accept();
+                return Token.MULT;
+            case '/':
+                accept();
+                return Token.DIV;
+            case '!':
+                accept();
+                if (currentChar == '=') {
+                    accept();
+                    return Token.NOTEQ;
+                } else {
+                    return Token.NOT;
+                }
+            case '=':
+                accept();
+                if (currentChar == '=') {
+                    accept();
+                    return Token.EQEQ;
+                } else {
+                    return Token.EQ;
+                }
+            case '<':
+                accept();
+                if (currentChar == '=') {
+                    accept();
+                    return Token.LTEQ;
+                } else {
+                    return Token.LT;
+                }
+            case '>':
+                accept();
+                if (currentChar == '=') {
+                    accept();
+                    return Token.GTEQ;
+                } else {
+                    return Token.GT;
+                }
+            case '&':
+                accept();
+                if (currentChar == '&') {
+                    accept();
+                    return Token.ANDAND;
+                } else {
+                    return Token.ERROR;
+                }
             case '|':
                 accept();
                 if (currentChar == '|') {
@@ -85,7 +169,18 @@ public final class Scanner {
                     return Token.OROR;
                 } else {
                     return Token.ERROR;
-		}  
+                }
+            
+            // Handle keywords
+            // boolean
+            case 'b':
+                ///
+
+
+            case '.':
+       	    //  Handle floats (by calling auxiliary functions)
+            
+		
 	    // ...
             case SourceFile.eof:
                 currentSpelling.append(Token.spell(Token.EOF));
@@ -95,7 +190,7 @@ public final class Scanner {
                 break;
         }
 
-        // Handle identifiers and nuemric literals
+        // Handle identifiers and numeric literals
         // ...
 
         accept();
@@ -103,7 +198,33 @@ public final class Scanner {
     }
 
     private void skipSpaceAndComments() {
-	// ...
+        // Checker to go through all possible cases
+        boolean checker = false;
+        while (checker == false) {
+
+            // whitespace case
+            if (currentChar == ' ' || currentChar == '\n' || currentChar == '\t') {
+                accept();
+            }
+            // If comment like this //
+            else if (currentChar == '/' && inspectChar(1) == '/') {
+                accept();
+                accept();
+                while (currentChar != '\n' || currentChar != '$') {
+                    accept();
+                }
+            }
+            // If comment like this /* */
+            else if (currentChar == '/' && inspectChar(1) == '*') {
+                accept();
+                accept();   
+                while ((currentChar != '*' && inspectChar(1) != '/') || currentChar != '$') {
+                    accept();
+                }
+            } else {
+                checker = true;
+            }
+        }
     }
 
     public Token getToken() {
@@ -118,6 +239,8 @@ public final class Scanner {
         sourcePos = new SourcePosition();
 
         // You need to record the position of the current token somehow
+        sourcePos.lineStart = lineNum;
+        sourcePos.charStart = colNum;
 	
         kind = nextToken();
 
