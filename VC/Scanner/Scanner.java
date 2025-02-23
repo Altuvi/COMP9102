@@ -172,10 +172,123 @@ public final class Scanner {
                 }
             
             // Handle keywords
-            // boolean
             case 'b':
-                ///
-
+                accept();
+                // boolean
+                if (currentChar == 'o' && inspectChar(1) == 'o' && inspectChar(2) == 'l' && inspectChar(3) == 'e' && inspectChar(4) == 'a' && inspectChar(5) == 'n') {
+                    if (keywordChecker(6) == false) {
+                        return Token.ID;
+                    } else {
+                        return Token.BOOLEAN;
+                    }
+                // break
+                } else if (currentChar == 'r' && inspectChar(1) == 'e' && inspectChar(2) == 'a' && inspectChar(3) == 'k') {
+                    if (keywordChecker(4) == false) {
+                        return Token.ID;
+                    } else {
+                        return Token.BREAK;
+                    }
+                } else {
+                    return Token.ID;
+                }
+            case 'c':
+                accept();
+                // continue
+                if (currentChar == 'o' && inspectChar(1) == 'n' && inspectChar(2) == 't' && inspectChar(3) == 'i' && inspectChar(4) == 'n' && inspectChar(5) == 'u' && inspectChar(6) == 'e') {
+                    if (keywordChecker(7) == false) {
+                        return Token.ID;
+                    } else {
+                        return Token.CONTINUE;
+                    }
+                } else {
+                    return Token.ID;
+                }
+            case 'e':
+                accept();
+                // else
+                if (currentChar == 'l' && inspectChar(1) == 's' && inspectChar(2) == 'e') {
+                    if (keywordChecker(3)) {
+                        return Token.ID;
+                    } else {
+                        return Token.ELSE;
+                    }
+                } else {
+                    return Token.ID;
+                }
+            case 'f':
+                accept();
+                // float
+                if (currentChar == 'l' && inspectChar(1) == 'o' && inspectChar(2) == 'a' && inspectChar(3) == 't') {
+                    if (keywordChecker(4) == false) {
+                        return Token.ID;
+                    } else {
+                        return Token.FLOAT;
+                    }
+                // for
+                } else if (currentChar == 'o' && inspectChar(1) == 'r') {
+                    if (keywordChecker(2) == false) {
+                        return Token.ID;
+                    } else {
+                        return Token.FOR;
+                    }
+                } else {
+                    return Token.ID;
+                }
+            case 'i':
+                accept();
+                // int
+                if (currentChar == 'n' && inspectChar(1) == 't') {
+                    if (keywordChecker(2) == false) {
+                        return Token.ID;
+                    } else {
+                        return Token.INT;
+                    }
+                // if
+                } else if (currentChar == 'f') {
+                    if (keywordChecker(1) == false) {
+                        return Token.ID;
+                    } else {
+                        return Token.IF;
+                    }
+                } else {
+                    return Token.ID;
+                }
+            case 'r':
+                accept();
+                // return
+                if (currentChar == 'e' && inspectChar(1) == 't' && inspectChar(2) == 'u' && inspectChar(3) == 'r' && inspectChar(4) == 'n') {
+                    if (keywordChecker(5) == false) {
+                        return Token.ID;
+                    } else {
+                        return Token.RETURN;
+                    }
+                } else {
+                    return Token.ID;
+                }
+            case 'v':
+                accept();
+                // if void
+                if (currentChar == 'o' && inspectChar(1) == 'i' && inspectChar(2) == 'd') {
+                    if (keywordChecker(3) == false) {
+                        return Token.ID;
+                    } else {
+                        return Token.VOID;
+                    }
+                } else {
+                    return Token.ID;
+                }
+            case 'w':
+                accept();
+                // if while
+                if (currentChar == 'h' && inspectChar(1) == 'i' && inspectChar(2) == 'l' && inspectChar(3) == 'e') {
+                    if (keywordChecker(4) == false) {
+                        return Token.ID;
+                    } else {
+                        return Token.WHILE;
+                    }
+                } else {
+                    return Token.ID;
+                }
 
             case '.':
        	    //  Handle floats (by calling auxiliary functions)
@@ -195,6 +308,22 @@ public final class Scanner {
 
         accept();
         return Token.ERROR;
+    }
+
+    private boolean keywordChecker(int k) {
+        boolean isKeyword = false;
+        if (Character.isLetter(inspectChar(k)) || Character.isDigit(inspectChar(k)) || inspectChar(k) == '_') {
+            while (Character.isLetter(inspectChar(k)) || Character.isDigit(inspectChar(k)) || inspectChar(k) == '_') {
+                accept();
+                k++;
+            }
+            return isKeyword;
+        } else {
+            for (int i = 0; i < k; i++) {
+                accept();
+            }
+            return isKeyword = true;
+        }
     }
 
     private void skipSpaceAndComments() {
