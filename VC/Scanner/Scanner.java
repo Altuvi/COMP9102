@@ -25,8 +25,8 @@ public final class Scanner {
     private StringBuilder currentSpelling;
     private char currentChar;
     private SourcePosition sourcePos;
-    private int lineNum;
-    private int colNum;
+    private int lineCounter;
+    private int colCounter;
 
     // =========================================================
 
@@ -40,8 +40,8 @@ public final class Scanner {
         currentChar = sourceFile.getNextChar();
 
         // Initialise your counters for counting line and column numbers here
-        lineNum = 1;
-        colNum = 1;
+        lineCounter = 1;
+        colCounter = 1;
     }
 
     public void enableDebugging() {
@@ -58,10 +58,10 @@ public final class Scanner {
 
   	// You may also increment your line and column counters here
         if (currentChar == '\n') {
-            lineNum++;
-            colNum = 0;
+            lineCounter++;
+            colCounter = 0;
         } else {
-            colNum++;
+            colCounter++;
         }
     }
 
@@ -86,209 +86,115 @@ public final class Scanner {
             // Handle separators
             case '(':
                 accept();
+                currentSpelling.append(Token.spell(Token.LPAREN));
                 return Token.LPAREN;
             case ')':
                 accept();
+                currentSpelling.append(Token.spell(Token.RPAREN));
                 return Token.RPAREN;
             case '[':
                 accept();
+                currentSpelling.append(Token.spell(Token.LBRACKET));
                 return Token.LBRACKET;
             case ']':
                 accept();
+                currentSpelling.append(Token.spell(Token.RBRACKET));
                 return Token.RBRACKET;
             case '{':
                 accept();
+                currentSpelling.append(Token.spell(Token.LCURLY));
                 return Token.LCURLY;
             case '}':
                 accept();
+                currentSpelling.append(Token.spell(Token.RCURLY));
                 return Token.RCURLY;
             case ';':
                 accept();
+                currentSpelling.append(Token.spell(Token.SEMICOLON));
                 return Token.SEMICOLON;
             case ',':
                 accept();
+                currentSpelling.append(Token.spell(Token.COMMA));
                 return Token.COMMA;
 
             // Handle operators
             case '+':
                 accept();
+                currentSpelling.append(Token.spell(Token.PLUS));
                 return Token.PLUS;
             case '-':
                 accept();
+                currentSpelling.append(Token.spell(Token.MINUS));
                 return Token.MINUS;
             case '*':
                 accept();
+                currentSpelling.append(Token.spell(Token.MULT));
                 return Token.MULT;
             case '/':
                 accept();
+                currentSpelling.append(Token.spell(Token.DIV));
                 return Token.DIV;
             case '!':
                 accept();
                 if (currentChar == '=') {
                     accept();
+                    currentSpelling.append(Token.spell(Token.NOTEQ));
                     return Token.NOTEQ;
                 } else {
+                    currentSpelling.append(Token.spell(Token.NOT));
                     return Token.NOT;
                 }
             case '=':
                 accept();
                 if (currentChar == '=') {
                     accept();
+                    currentSpelling.append(Token.spell(Token.EQEQ));
                     return Token.EQEQ;
                 } else {
+                    currentSpelling.append(Token.spell(Token.EQ));
                     return Token.EQ;
                 }
             case '<':
                 accept();
                 if (currentChar == '=') {
                     accept();
+                    currentSpelling.append(Token.spell(Token.LTEQ));
                     return Token.LTEQ;
                 } else {
+                    currentSpelling.append(Token.spell(Token.LT));
                     return Token.LT;
                 }
             case '>':
                 accept();
                 if (currentChar == '=') {
                     accept();
+                    currentSpelling.append(Token.spell(Token.GTEQ));
                     return Token.GTEQ;
                 } else {
+                    currentSpelling.append(Token.spell(Token.GT));
                     return Token.GT;
                 }
             case '&':
                 accept();
                 if (currentChar == '&') {
                     accept();
+                    currentSpelling.append(Token.spell(Token.ANDAND));
                     return Token.ANDAND;
                 } else {
+                    currentSpelling.append(Token.spell(Token.ERROR));
                     return Token.ERROR;
                 }
             case '|':
                 accept();
                 if (currentChar == '|') {
                     accept();
+                    currentSpelling.append(Token.spell(Token.OROR));
                     return Token.OROR;
                 } else {
+                    currentSpelling.append(Token.spell(Token.ERROR));
                     return Token.ERROR;
                 }
-            
-            // Handle keywords
-            case 'b':
-                accept();
-                // boolean
-                if (currentChar == 'o' && inspectChar(1) == 'o' && inspectChar(2) == 'l' && inspectChar(3) == 'e' && inspectChar(4) == 'a' && inspectChar(5) == 'n') {
-                    if (keywordChecker(6) == false) {
-                        return Token.ID;
-                    } else {
-                        return Token.BOOLEAN;
-                    }
-                // break
-                } else if (currentChar == 'r' && inspectChar(1) == 'e' && inspectChar(2) == 'a' && inspectChar(3) == 'k') {
-                    if (keywordChecker(4) == false) {
-                        return Token.ID;
-                    } else {
-                        return Token.BREAK;
-                    }
-                } else {
-                    return Token.ID;
-                }
-            case 'c':
-                accept();
-                // continue
-                if (currentChar == 'o' && inspectChar(1) == 'n' && inspectChar(2) == 't' && inspectChar(3) == 'i' && inspectChar(4) == 'n' && inspectChar(5) == 'u' && inspectChar(6) == 'e') {
-                    if (keywordChecker(7) == false) {
-                        return Token.ID;
-                    } else {
-                        return Token.CONTINUE;
-                    }
-                } else {
-                    return Token.ID;
-                }
-            case 'e':
-                accept();
-                // else
-                if (currentChar == 'l' && inspectChar(1) == 's' && inspectChar(2) == 'e') {
-                    if (keywordChecker(3)) {
-                        return Token.ID;
-                    } else {
-                        return Token.ELSE;
-                    }
-                } else {
-                    return Token.ID;
-                }
-            case 'f':
-                accept();
-                // float
-                if (currentChar == 'l' && inspectChar(1) == 'o' && inspectChar(2) == 'a' && inspectChar(3) == 't') {
-                    if (keywordChecker(4) == false) {
-                        return Token.ID;
-                    } else {
-                        return Token.FLOAT;
-                    }
-                // for
-                } else if (currentChar == 'o' && inspectChar(1) == 'r') {
-                    if (keywordChecker(2) == false) {
-                        return Token.ID;
-                    } else {
-                        return Token.FOR;
-                    }
-                } else {
-                    return Token.ID;
-                }
-            case 'i':
-                accept();
-                // int
-                if (currentChar == 'n' && inspectChar(1) == 't') {
-                    if (keywordChecker(2) == false) {
-                        return Token.ID;
-                    } else {
-                        return Token.INT;
-                    }
-                // if
-                } else if (currentChar == 'f') {
-                    if (keywordChecker(1) == false) {
-                        return Token.ID;
-                    } else {
-                        return Token.IF;
-                    }
-                } else {
-                    return Token.ID;
-                }
-            case 'r':
-                accept();
-                // return
-                if (currentChar == 'e' && inspectChar(1) == 't' && inspectChar(2) == 'u' && inspectChar(3) == 'r' && inspectChar(4) == 'n') {
-                    if (keywordChecker(5) == false) {
-                        return Token.ID;
-                    } else {
-                        return Token.RETURN;
-                    }
-                } else {
-                    return Token.ID;
-                }
-            case 'v':
-                accept();
-                // if void
-                if (currentChar == 'o' && inspectChar(1) == 'i' && inspectChar(2) == 'd') {
-                    if (keywordChecker(3) == false) {
-                        return Token.ID;
-                    } else {
-                        return Token.VOID;
-                    }
-                } else {
-                    return Token.ID;
-                }
-            case 'w':
-                accept();
-                // if while
-                if (currentChar == 'h' && inspectChar(1) == 'i' && inspectChar(2) == 'l' && inspectChar(3) == 'e') {
-                    if (keywordChecker(4) == false) {
-                        return Token.ID;
-                    } else {
-                        return Token.WHILE;
-                    }
-                } else {
-                    return Token.ID;
-                }
+
 
             case '.':
        	    //  Handle floats (by calling auxiliary functions)
@@ -304,33 +210,32 @@ public final class Scanner {
         }
 
         // Handle identifiers and numeric literals
-        // ...
+        // Handle identifiers (Token.java converts identifiers into keywords if identifier is keyword)
+        if (Character.isLetter(currentChar) || currentChar == '_') {
+            accept();
+            currentSpelling.append(currentChar);
+            while (Character.isLetter(currentChar) || currentChar == '_' || Character.isLetter(currentChar)) {
+                accept();
+                currentSpelling.append(currentChar);
+            }
+            return Token.ID;
+        }
+
+        // Handle numeric literals
+        if (Character.isDigit(currentChar)) {
+            accept();
+            currentSpelling.append(currentChar);
+            
+        }
 
         accept();
         return Token.ERROR;
-    }
-
-    private boolean keywordChecker(int k) {
-        boolean isKeyword = false;
-        if (Character.isLetter(inspectChar(k)) || Character.isDigit(inspectChar(k)) || inspectChar(k) == '_') {
-            while (Character.isLetter(inspectChar(k)) || Character.isDigit(inspectChar(k)) || inspectChar(k) == '_') {
-                accept();
-                k++;
-            }
-            return isKeyword;
-        } else {
-            for (int i = 0; i < k; i++) {
-                accept();
-            }
-            return isKeyword = true;
-        }
     }
 
     private void skipSpaceAndComments() {
         // Checker to go through all possible cases
         boolean checker = false;
         while (checker == false) {
-
             // whitespace case
             if (currentChar == ' ' || currentChar == '\n' || currentChar == '\t') {
                 accept();
@@ -349,7 +254,7 @@ public final class Scanner {
                 accept();   
                 while ((currentChar != '*' && inspectChar(1) != '/') || currentChar != '$') {
                     accept();
-                }
+                } 
             } else {
                 checker = true;
             }
@@ -368,8 +273,8 @@ public final class Scanner {
         sourcePos = new SourcePosition();
 
         // You need to record the position of the current token somehow
-        sourcePos.lineStart = lineNum;
-        sourcePos.charStart = colNum;
+        sourcePos.lineStart = lineCounter;
+        sourcePos.charStart = colCounter;
 	
         kind = nextToken();
 
