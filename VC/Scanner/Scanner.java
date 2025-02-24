@@ -54,7 +54,7 @@ public final class Scanner {
      	currentChar = sourceFile.getNextChar();
 
   	// You may save the lexeme of the current token incrementally here
-
+        currentSpelling.append(currentChar);
 
   	// You may also increment your line and column counters here
         if (currentChar == '\n') {
@@ -86,119 +86,128 @@ public final class Scanner {
             // Handle separators
             case '(':
                 accept();
-                currentSpelling.append(Token.spell(Token.LPAREN));
                 return Token.LPAREN;
             case ')':
                 accept();
-                currentSpelling.append(Token.spell(Token.RPAREN));
                 return Token.RPAREN;
             case '[':
                 accept();
-                currentSpelling.append(Token.spell(Token.LBRACKET));
                 return Token.LBRACKET;
             case ']':
                 accept();
-                currentSpelling.append(Token.spell(Token.RBRACKET));
                 return Token.RBRACKET;
             case '{':
                 accept();
-                currentSpelling.append(Token.spell(Token.LCURLY));
                 return Token.LCURLY;
             case '}':
                 accept();
-                currentSpelling.append(Token.spell(Token.RCURLY));
                 return Token.RCURLY;
             case ';':
                 accept();
-                currentSpelling.append(Token.spell(Token.SEMICOLON));
                 return Token.SEMICOLON;
             case ',':
                 accept();
-                currentSpelling.append(Token.spell(Token.COMMA));
                 return Token.COMMA;
 
             // Handle operators
             case '+':
                 accept();
-                currentSpelling.append(Token.spell(Token.PLUS));
                 return Token.PLUS;
             case '-':
                 accept();
-                currentSpelling.append(Token.spell(Token.MINUS));
                 return Token.MINUS;
             case '*':
                 accept();
-                currentSpelling.append(Token.spell(Token.MULT));
                 return Token.MULT;
             case '/':
                 accept();
-                currentSpelling.append(Token.spell(Token.DIV));
                 return Token.DIV;
             case '!':
                 accept();
                 if (currentChar == '=') {
                     accept();
-                    currentSpelling.append(Token.spell(Token.NOTEQ));
                     return Token.NOTEQ;
                 } else {
-                    currentSpelling.append(Token.spell(Token.NOT));
                     return Token.NOT;
                 }
             case '=':
                 accept();
                 if (currentChar == '=') {
                     accept();
-                    currentSpelling.append(Token.spell(Token.EQEQ));
                     return Token.EQEQ;
                 } else {
-                    currentSpelling.append(Token.spell(Token.EQ));
                     return Token.EQ;
                 }
             case '<':
                 accept();
                 if (currentChar == '=') {
                     accept();
-                    currentSpelling.append(Token.spell(Token.LTEQ));
                     return Token.LTEQ;
                 } else {
-                    currentSpelling.append(Token.spell(Token.LT));
                     return Token.LT;
                 }
             case '>':
                 accept();
                 if (currentChar == '=') {
                     accept();
-                    currentSpelling.append(Token.spell(Token.GTEQ));
                     return Token.GTEQ;
                 } else {
-                    currentSpelling.append(Token.spell(Token.GT));
                     return Token.GT;
                 }
             case '&':
                 accept();
                 if (currentChar == '&') {
                     accept();
-                    currentSpelling.append(Token.spell(Token.ANDAND));
                     return Token.ANDAND;
                 } else {
-                    currentSpelling.append(Token.spell(Token.ERROR));
                     return Token.ERROR;
                 }
             case '|':
                 accept();
                 if (currentChar == '|') {
                     accept();
-                    currentSpelling.append(Token.spell(Token.OROR));
                     return Token.OROR;
                 } else {
-                    currentSpelling.append(Token.spell(Token.ERROR));
                     return Token.ERROR;
                 }
 
-
             case '.':
        	    //  Handle floats (by calling auxiliary functions)
-            
+                accept();
+                // .digit+ exponent?
+                if (Character.isDigit(currentChar)) {
+                    while (Character.isDigit(currentChar)) {
+                        accept();
+                    }
+                    // .digit+ exponent
+                    if (currentChar == 'e' || currentChar == 'E') {
+                        isExponent();
+                        // // (+|-)?digit+
+                        // if ((inspectChar(1) == '+' || inspectChar(1) == '-') && Character.isDigit(inspectChar(2))) {
+                        //     accept();
+                        //     accept();
+                        //     accept();
+                        //     while (Character.isDigit(currentChar)) {
+                        //         accept();
+                        //     }
+                        //     return Token.FLOATLITERAL;
+                        // // digit+
+                        // } else if (Character.isDigit(inspectChar(1))){
+                        //     accept();
+                        //     accept();
+                        //     while (Character.isDigit(currentChar)) {
+                        //         accept();
+                        //     }
+                        //     return Token.FLOATLITERAL;
+                        // } else {
+                        //     return Token.ERROR; // e.g. .121e
+                        // }
+                    } else {
+                        return Token.FLOATLITERAL; // e.g. .121
+                    }
+                } else {
+                    return Token.ERROR; // e.g. .abc, .e12
+                }
 		
 	    // ...
             case SourceFile.eof:
@@ -213,23 +222,74 @@ public final class Scanner {
         // Handle identifiers (Token.java converts identifiers into keywords if identifier is keyword)
         if (Character.isLetter(currentChar) || currentChar == '_') {
             accept();
-            currentSpelling.append(currentChar);
             while (Character.isLetter(currentChar) || currentChar == '_' || Character.isLetter(currentChar)) {
                 accept();
-                currentSpelling.append(currentChar);
             }
             return Token.ID;
         }
 
-        // Handle numeric literals
+        // Handle numeric literals (integers and floats)
+        // Case 1: digit+ fraction exponent?
+        // Case 2: digit+.
+        // Case 3: digit+.?exponent
         if (Character.isDigit(currentChar)) {
             accept();
-            currentSpelling.append(currentChar);
-            
+            while (Character.isDigit(currentChar)) {
+                accept();
+            }
+            if (currentChar == '.') {
+                accept();
+                // Case 1a: digit+ .digit+ exponent
+                if (Character.isDigit(currentChar)) {
+                    while (Character.isDigit(currentChar)) {
+                        accept();
+                    }
+                    if (currentChar == 'e' || currentChar == 'E') {
+                        isExponent();
+                    // Case 1b: digit+ .digit+
+                    } else if (!Character.isLetter(currentChar) || !Character.) {
+
+                    }
+                }
+
+                
+            // Case 3b: digit+ exponent
+            } else if (currentChar == 'e' || currentChar == 'E') {
+                // digitE(+|-)digit+
+                isExponent();
+            } else {
+                return Token.INTLITERAL;
+            }
         }
 
         accept();
         return Token.ERROR;
+    }
+
+    private int isExponent() {
+        // digitE(+|-)digit+ e.g. 121E+12 OR .E+121
+        if ((inspectChar(1) == '+' || inspectChar(1) == '-') && Character.isDigit(inspectChar(2))) {
+            accept();
+            accept();
+            accept();
+            while (Character.isDigit(currentChar)) {
+                accept();
+            }
+            return Token.FLOATLITERAL;
+        // digitEdigit+ e.g. 121E121 OR .E121
+        } else if (Character.isDigit(inspectChar(1))){
+            accept();
+            accept();
+            while (Character.isDigit(currentChar)) {
+                accept();
+            }
+            return Token.FLOATLITERAL;
+        // digit E
+        } else { 
+            accept();
+            return Token.ID;
+            // return Token.ERROR; // e.g. 121ef or 121e_
+        }
     }
 
     private void skipSpaceAndComments() {
