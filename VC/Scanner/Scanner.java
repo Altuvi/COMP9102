@@ -51,18 +51,34 @@ public final class Scanner {
     // accept gets the next character from the source program.
     private void accept() {
 
-     	currentChar = sourceFile.getNextChar();
-
-  	// You may save the lexeme of the current token incrementally here
+    // You may save the lexeme of the current token incrementally here
         currentSpelling.append(currentChar);
 
   	// You may also increment your line and column counters here
         if (currentChar == '\n') {
             lineCounter++;
-            colCounter = 0;
+            colCounter = 1;
+        } else if (currentChar == '\t') {
+            colCounter += 8;
         } else {
             colCounter++;
         }
+
+     	currentChar = sourceFile.getNextChar();
+
+  	
+    }
+
+    private void acceptSpaceComment() {
+        if (currentChar == '\n') {
+            lineCounter++;
+            colCounter = 1;
+        } else if (currentChar == '\t') {
+            colCounter += 8;
+        } else {
+            colCounter++;
+        }
+        currentChar = sourceFile.getNextChar();
     }
 
 
@@ -241,13 +257,15 @@ public final class Scanner {
                 accept();
                 // Case 1a: digit+ .digit+ exponent
                 if (Character.isDigit(currentChar)) {
+                    // digit+ .digit+ e.g. 1.23
                     while (Character.isDigit(currentChar)) {
                         accept();
                     }
+                    // digit .digit+ exponent e.g. 1.23E
                     if (currentChar == 'e' || currentChar == 'E') {
                         isExponent();
-                    // Case 1b: digit+ .digit+
-                    } else if (!Character.isLetter(currentChar) || !Character.) {
+                    // else 
+                    } else {
 
                     }
                 }
@@ -284,7 +302,7 @@ public final class Scanner {
                 accept();
             }
             return Token.FLOATLITERAL;
-        // digit E
+        // if next character after E is not a digit or a +/- then E should be an ID
         } else { 
             accept();
             return Token.ID;
@@ -298,23 +316,30 @@ public final class Scanner {
         while (checker == false) {
             // whitespace case
             if (currentChar == ' ' || currentChar == '\n' || currentChar == '\t') {
-                accept();
+                acceptSpaceComment();
             }
             // If comment like this //
             else if (currentChar == '/' && inspectChar(1) == '/') {
-                accept();
-                accept();
+                acceptSpaceComment();
+                acceptSpaceComment();
                 while (currentChar != '\n' || currentChar != '$') {
-                    accept();
+                    acceptSpaceComment();
                 }
             }
             // If comment like this /* */
             else if (currentChar == '/' && inspectChar(1) == '*') {
-                accept();
-                accept();   
-                while ((currentChar != '*' && inspectChar(1) != '/') || currentChar != '$') {
-                    accept();
+                acceptSpaceComment();
+                acceptSpaceComment();   
+                System.out.println(currentChar);
+                while ((currentChar != '*' || inspectChar(1) != '/') && currentChar != '$') {
+                    acceptSpaceComment();
                 } 
+                if (currentChar == '*' && inspectChar(1) == '/') {
+                    acceptSpaceComment();
+                    acceptSpaceComment();
+                } else {
+                    // reportError("unterminated comment", "ERROR", );
+                }
             } else {
                 checker = true;
             }
@@ -334,10 +359,17 @@ public final class Scanner {
 
         // You need to record the position of the current token somehow
         sourcePos.lineStart = lineCounter;
+        sourcePos.lineFinish = sourcePos.lineStart;
         sourcePos.charStart = colCounter;
 	
         kind = nextToken();
-
+        
+        if (sourcePos.charStart > 1) {
+            sourcePos.charFinish = colCounter - 1;
+        } else {
+            sourcePos.charFinish = sourcePos.charStart;
+        }
+        
         token = new Token(kind, currentSpelling.toString(), sourcePos);
 
    	// * do not remove these three lines below (for debugging purposes)
