@@ -227,6 +227,7 @@ public final class Scanner {
 		
 	    // ...
             case SourceFile.eof:
+                accept();
                 currentSpelling.append(Token.spell(Token.EOF));
                 return Token.EOF;
 
@@ -322,23 +323,37 @@ public final class Scanner {
             else if (currentChar == '/' && inspectChar(1) == '/') {
                 acceptSpaceComment();
                 acceptSpaceComment();
-                while (currentChar != '\n' || currentChar != '$') {
+                while (currentChar != '\n' && currentChar != SourceFile.eof) {
                     acceptSpaceComment();
                 }
             }
             // If comment like this /* */
             else if (currentChar == '/' && inspectChar(1) == '*') {
+                int lStart = lineCounter;
+                int cStart = colCounter;
                 acceptSpaceComment();
                 acceptSpaceComment();   
-                System.out.println(currentChar);
-                while ((currentChar != '*' || inspectChar(1) != '/') && currentChar != '$') {
+                // System.out.println(currentChar);
+                while (!(currentChar == '*' && inspectChar(1) == '/') && currentChar != SourceFile.eof) {
                     acceptSpaceComment();
-                } 
+                }
+
+                // while ((currentChar != '*' || inspectChar(1) != '/') && currentChar != '$') {
+                //     acceptSpaceComment();
+                // } 
+                // if terminated
                 if (currentChar == '*' && inspectChar(1) == '/') {
                     acceptSpaceComment();
                     acceptSpaceComment();
+                // reached eof --> unterminated
                 } else {
-                    // reportError("unterminated comment", "ERROR", );
+                    SourcePosition errorPos = new SourcePosition();
+                    errorPos.lineStart = lStart;
+                    errorPos.lineFinish = errorPos.lineStart;
+                    errorPos.charStart = cStart;
+                    errorPos.charFinish = errorPos.charStart;
+                    errorReporter.reportError("unterminated comment", "ERROR", errorPos);
+                    // checker = true;
                 }
             } else {
                 checker = true;
@@ -363,12 +378,16 @@ public final class Scanner {
         sourcePos.charStart = colCounter;
 	
         kind = nextToken();
-        
-        if (sourcePos.charStart > 1) {
+
+        if (colCounter - 1 > 0) {
             sourcePos.charFinish = colCounter - 1;
-        } else {
-            sourcePos.charFinish = sourcePos.charStart;
         }
+        
+        // if (sourcePos.charStart > 1) {
+        //     sourcePos.charFinish = colCounter - 1;
+        // } else {
+        //     sourcePos.charFinish = sourcePos.charStart;
+        // }
         
         token = new Token(kind, currentSpelling.toString(), sourcePos);
 
