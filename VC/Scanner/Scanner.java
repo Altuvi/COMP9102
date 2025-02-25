@@ -197,27 +197,7 @@ public final class Scanner {
                     }
                     // .digit+ exponent
                     if (currentChar == 'e' || currentChar == 'E') {
-                        isExponent();
-                        // // (+|-)?digit+
-                        // if ((inspectChar(1) == '+' || inspectChar(1) == '-') && Character.isDigit(inspectChar(2))) {
-                        //     accept();
-                        //     accept();
-                        //     accept();
-                        //     while (Character.isDigit(currentChar)) {
-                        //         accept();
-                        //     }
-                        //     return Token.FLOATLITERAL;
-                        // // digit+
-                        // } else if (Character.isDigit(inspectChar(1))){
-                        //     accept();
-                        //     accept();
-                        //     while (Character.isDigit(currentChar)) {
-                        //         accept();
-                        //     }
-                        //     return Token.FLOATLITERAL;
-                        // } else {
-                        //     return Token.ERROR; // e.g. .121e
-                        // }
+                        return isExponent();
                     } else {
                         return Token.FLOATLITERAL; // e.g. .121
                     }
@@ -264,18 +244,20 @@ public final class Scanner {
                     }
                     // digit .digit+ exponent e.g. 1.23E
                     if (currentChar == 'e' || currentChar == 'E') {
-                        isExponent();
+                        return isExponent();
                     // else 
                     } else {
-
+                        return Token.FLOATLITERAL;
                     }
+                } else if (currentChar == 'e' || currentChar == 'E') {
+                    return isExponent();
+                } else {
+                    return Token.FLOATLITERAL; // e.g. '1.' in '1. etft' is a float literal
                 }
-
-                
             // Case 3b: digit+ exponent
             } else if (currentChar == 'e' || currentChar == 'E') {
                 // digitE(+|-)digit+
-                isExponent();
+                return isExponent();
             } else {
                 return Token.INTLITERAL;
             }
@@ -288,25 +270,25 @@ public final class Scanner {
     private int isExponent() {
         // digitE(+|-)digit+ e.g. 121E+12 OR .E+121
         if ((inspectChar(1) == '+' || inspectChar(1) == '-') && Character.isDigit(inspectChar(2))) {
-            accept();
-            accept();
-            accept();
+            accept(); // e
+            accept(); // +/-
+            accept(); // digit
             while (Character.isDigit(currentChar)) {
-                accept();
+                accept(); // accept rest of digits if any
             }
             return Token.FLOATLITERAL;
         // digitEdigit+ e.g. 121E121 OR .E121
         } else if (Character.isDigit(inspectChar(1))){
-            accept();
-            accept();
+            accept(); // e
+            accept(); // digit
             while (Character.isDigit(currentChar)) {
-                accept();
+                accept(); // accept rest of digits if any
             }
             return Token.FLOATLITERAL;
         // if next character after E is not a digit or a +/- then E should be an ID
         } else { 
-            accept();
-            return Token.ID;
+            // accept();
+            return Token.FLOATLITERAL; // no exponent
             // return Token.ERROR; // e.g. 121ef or 121e_
         }
     }
@@ -337,11 +319,6 @@ public final class Scanner {
                 while (!(currentChar == '*' && inspectChar(1) == '/') && currentChar != SourceFile.eof) {
                     acceptSpaceComment();
                 }
-
-                // while ((currentChar != '*' || inspectChar(1) != '/') && currentChar != '$') {
-                //     acceptSpaceComment();
-                // } 
-                // if terminated
                 if (currentChar == '*' && inspectChar(1) == '/') {
                     acceptSpaceComment();
                     acceptSpaceComment();
@@ -382,12 +359,6 @@ public final class Scanner {
         if (colCounter - 1 > 0) {
             sourcePos.charFinish = colCounter - 1;
         }
-        
-        // if (sourcePos.charStart > 1) {
-        //     sourcePos.charFinish = colCounter - 1;
-        // } else {
-        //     sourcePos.charFinish = sourcePos.charStart;
-        // }
         
         token = new Token(kind, currentSpelling.toString(), sourcePos);
 
