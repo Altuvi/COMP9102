@@ -218,11 +218,16 @@ public final class Scanner {
         // Handle identifiers and numeric literals
         // Handle identifiers (Token.java converts identifiers into keywords if identifier is keyword)
         if (Character.isLetter(currentChar) || currentChar == '_') {
-            accept();
-            while (Character.isLetter(currentChar) || currentChar == '_' || Character.isLetter(currentChar)) {
+            if (isBooleanLiteral()) {
+                return Token.BOOLEANLITERAL;
+            } else {
                 accept();
+                while (Character.isLetter(currentChar) || currentChar == '_' || Character.isLetter(currentChar)) {
+                    accept();
+                }
+                return Token.ID;
             }
-            return Token.ID;
+            
         }
 
         // Handle numeric literals (integers and floats)
@@ -290,6 +295,25 @@ public final class Scanner {
             // accept();
             return Token.FLOATLITERAL; // no exponent
             // return Token.ERROR; // e.g. 121ef or 121e_
+        }
+    }
+
+    private boolean isBooleanLiteral() {
+        if (currentChar == 't' && inspectChar(1) == 'r' && inspectChar(2) == 'u' && inspectChar(3) == 'e') {
+            accept();
+            accept();
+            accept();
+            accept();
+            return true;
+        } else if (currentChar == 'f' && inspectChar(1) == 'a' && inspectChar(2) == 'l' && inspectChar(3) == 's' && inspectChar(4) == 'e') {
+            accept();
+            accept();
+            accept();
+            accept();
+            accept();
+            return true;
+        } else {
+            return false;
         }
     }
 
