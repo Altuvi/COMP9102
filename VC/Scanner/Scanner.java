@@ -59,7 +59,13 @@ public final class Scanner {
             lineCounter++;
             colCounter = 1;
         } else if (currentChar == '\t') {
-            colCounter += 8;
+			// System.out.println("Hime");
+            if (colCounter % 8 == 0) { // if colCounter is multiple of 8
+				colCounter++; // increment colCounter by 1
+			} else {
+				// e.g. colCounter = 3 --> new colCounter = 3 + (9 - (3 % 8)) = 9
+				colCounter += 9 - (colCounter % 8); // 
+			}
         } else {
             colCounter++;
         }
@@ -74,7 +80,13 @@ public final class Scanner {
             lineCounter++;
             colCounter = 1;
         } else if (currentChar == '\t') {
-            colCounter += 8;
+            // System.out.println("Hi");
+            if (colCounter % 8 == 0) { // if colCounter is multiple of 8
+				colCounter++; // increment colCounter by 1
+			} else {
+				// e.g. colCounter = 3 --> new colCounter = 3 + (9 - (3 % 8)) = 9
+				colCounter += 9 - (colCounter % 8);
+			}
         } else {
             colCounter++;
         }
@@ -204,6 +216,11 @@ public final class Scanner {
                 } else {
                     return Token.ERROR; // e.g. .abc, .e12
                 }
+
+            case '"':
+            // Handle string literals
+                accept();
+                // Handle escape characters
 		
 	    // ...
             case SourceFile.eof:
@@ -291,10 +308,12 @@ public final class Scanner {
             }
             return Token.FLOATLITERAL;
         // if next character after E is not a digit or a +/- then E should be an ID
-        } else { 
+        } else if (currentChar == '.') { 
             // accept();
-            return Token.FLOATLITERAL; // no exponent
+            return Token.FLOATLITERAL; // '1.' in '1.ef' is a float
             // return Token.ERROR; // e.g. 121ef or 121e_
+        } else {
+            return Token.INTLITERAL; // '123' in '123ef' is an int
         }
     }
 
