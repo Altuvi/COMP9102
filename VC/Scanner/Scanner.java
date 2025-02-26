@@ -277,6 +277,7 @@ public final class Scanner {
             }
         }
 
+        // Handle string literals and escape characters
         if (currentChar == '"') {
             int lStart = lineCounter;
             int cStart = colCounter;
