@@ -59,20 +59,17 @@ public final class Scanner {
             lineCounter++;
             colCounter = 1;
         } else if (currentChar == '\t') {
-			// System.out.println("Hime");
-            if (colCounter % 8 == 0) { // if colCounter is multiple of 8
-				colCounter++; // increment colCounter by 1
-			} else {
-				// e.g. colCounter = 3 --> new colCounter = 3 + (9 - (3 % 8)) = 9
-				colCounter += 9 - (colCounter % 8); // 
-			}
+            colCounter = ((colCounter + 7) / 8) * 8 + 1;
+            // if (colCounter % 8 == 0) { // if colCounter is multiple of 8
+			// 	colCounter++; // increment colCounter by 1
+			// } else {
+			// 	// e.g. colCounter = 3 --> new colCounter = 3 + (9 - (3 % 8)) = 9
+			// 	colCounter += 9 - (colCounter % 8); // 
+			// }
         } else {
             colCounter++;
         }
-
      	currentChar = sourceFile.getNextChar();
-
-  	
     }
 
     private void acceptSpaceComment() {
@@ -80,13 +77,13 @@ public final class Scanner {
             lineCounter++;
             colCounter = 1;
         } else if (currentChar == '\t') {
-            // System.out.println("Hi");
-            if (colCounter % 8 == 0) { // if colCounter is multiple of 8
-				colCounter++; // increment colCounter by 1
-			} else {
-				// e.g. colCounter = 3 --> new colCounter = 3 + (9 - (3 % 8)) = 9
-				colCounter += 9 - (colCounter % 8);
-			}
+            colCounter = ((colCounter + 7) / 8) * 8 + 1;
+            // if (colCounter % 8 == 0) { // if colCounter is multiple of 8
+			// 	colCounter++; // increment colCounter by 1
+			// } else {
+			// 	// e.g. colCounter = 3 --> new colCounter = 3 + (9 - (3 % 8)) = 9
+			// 	colCounter += 9 - (colCounter % 8);
+			// }
         } else {
             colCounter++;
         }
@@ -216,11 +213,6 @@ public final class Scanner {
                 } else {
                     return Token.ERROR; // e.g. .abc, .e12
                 }
-
-            case '"':
-            // Handle string literals
-                accept();
-                // Handle escape characters
 		
 	    // ...
             case SourceFile.eof:
@@ -285,6 +277,51 @@ public final class Scanner {
             }
         }
 
+        if (currentChar == '"') {
+            int lStart = lineCounter;
+            int cStart = colCounter;
+            SourcePosition errorPos = new SourcePosition();
+            accept();
+            while (currentChar != '"' && currentChar != '\n' && currentChar != sourceFile.eof) {
+                // Handle escape characters
+                if (currentChar == '\\') {
+                    // accept();
+                    if (isEscapeCharacter()) {
+                        accept();
+                    } else {    // illegal escape character
+                        
+                        // report error
+                        errorPos.lineStart = lStart;
+                        errorPos.charStart = cStart;
+                        errorPos.lineFinish = lineCounter;
+                        errorPos.charFinish = colCounter;
+                        errorReporter.reportError("illegal escape character", "ERROR", errorPos);
+                        // continue rest of remaining input
+                        accept();
+                    }
+                } else {
+                    // Handle other characters
+                    accept();   
+                }
+            }
+            if (currentChar == '"') {
+                // terminated string
+                accept();
+                return Token.STRINGLITERAL;
+
+            } else if (currentChar == '\n' || currentChar == sourceFile.eof) {
+                // unterminated string
+                errorPos.lineStart = lStart;
+                errorPos.charStart = cStart;
+                errorPos.lineFinish = lStart;
+                errorPos.charFinish = cStart;
+                errorReporter.reportError("unterminated string", "ERROR", errorPos);
+                // return string token that could be made
+            }
+
+            // Handle if unterminated string
+        }
+
         accept();
         return Token.ERROR;
     }
@@ -333,6 +370,37 @@ public final class Scanner {
             return true;
         } else {
             return false;
+        }
+    }
+
+    private boolean isEscapeCharacter() {
+        switch (currentChar) {
+            case 'b':   // backspace
+                currentChar = '\b';
+                return true;
+            case 'f':   // formfeed
+                currentChar = '\f';
+                return true;
+            case 'n':   // new line
+                currentChar = '\n';
+                return true;
+            case 'r':   // carriage return
+                currentChar = '\r';
+                return true;
+            case 't':   // horizontal tab
+                currentChar = '\t';
+                return true;
+            case '\'':  // single quote
+                currentChar = '\'';
+                return true;
+            case '\"':  // double quote
+                currentChar = '\"';
+                return true;
+            case '\\':  // backslash
+                currentChar = '\\';
+                return true;
+            default:
+                return false;
         }
     }
 
