@@ -52,9 +52,7 @@ public final class Scanner {
     private void accept() {
 
     // You may save the lexeme of the current token incrementally here
-		if (currentChar != '"') {
-			currentSpelling.append(currentChar);
-		}
+		currentSpelling.append(currentChar);
         
 
   	// You may also increment your line and column counters here
@@ -74,6 +72,12 @@ public final class Scanner {
         }
      	currentChar = sourceFile.getNextChar();
     }
+
+	private void acceptString() {
+		currentSpelling.append(currentChar);
+		colCounter++;
+		currentChar = sourceFile.getNextChar();
+	}
 
     private void acceptSpaceComment() {
         if (currentChar == '\n') {
@@ -219,7 +223,7 @@ public final class Scanner {
 		
 	    // ...
             case SourceFile.eof:
-                accept();
+                // accept();
                 currentSpelling.append(Token.spell(Token.EOF));
                 return Token.EOF;
 
@@ -285,13 +289,15 @@ public final class Scanner {
             int lStart = lineCounter;
             int cStart = colCounter;
             SourcePosition errorPos = new SourcePosition();
-            accept();
+            acceptString();
             while (currentChar != '"' && currentChar != '\n' && currentChar != sourceFile.eof) {
                 // Handle escape characters
                 if (currentChar == '\\') {
                     // accept();
                     if (isEscapeCharacter()) {
-                        accept(); // accept escape character
+                        acceptString(); // accept escape character
+						currentChar = sourceFile.getNextChar();
+						colCounter++;
                     } else {    // illegal escape character
                         
                         // report error
@@ -304,17 +310,19 @@ public final class Scanner {
 					
                         errorReporter.reportError("%: illegal escape character", illegalEscChar, errorPos);
                         // continue rest of remaining input
-                        accept();
-						accept();
+                        acceptString();
+						acceptString();
                     }
                 } else {
                     // Handle other characters
-                    accept();   
+                    acceptString();   
                 }
             }
             if (currentChar == '"') {
                 // terminated string
-                accept();
+                acceptString();
+				currentSpelling.deleteCharAt(0);
+				currentSpelling.deleteCharAt(currentSpelling.length() - 1);
                 return Token.STRINGLITERAL;
 
             } else if (currentChar == '\n' || currentChar == sourceFile.eof) {
@@ -327,6 +335,8 @@ public final class Scanner {
                 // return string token that could be made
 				// currentChar = '"';
 				// accept();
+				currentSpelling.deleteCharAt(0);
+				// currentSpelling.deleteCharAt(currentSpelling.length() - 1);
 				return Token.STRINGLITERAL;
             }
 
@@ -482,7 +492,10 @@ public final class Scanner {
 
         if (colCounter - 1 > 0) {
             sourcePos.charFinish = colCounter - 1;
-        }
+        } else {
+			sourcePos.charFinish = colCounter;
+		}
+		
         
         token = new Token(kind, currentSpelling.toString(), sourcePos);
 
