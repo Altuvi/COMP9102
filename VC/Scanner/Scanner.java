@@ -52,7 +52,10 @@ public final class Scanner {
     private void accept() {
 
     // You may save the lexeme of the current token incrementally here
-        currentSpelling.append(currentChar);
+		if (currentChar != '"') {
+			currentSpelling.append(currentChar);
+		}
+        
 
   	// You may also increment your line and column counters here
         if (currentChar == '\n') {
@@ -288,7 +291,7 @@ public final class Scanner {
                 if (currentChar == '\\') {
                     // accept();
                     if (isEscapeCharacter()) {
-                        accept();
+                        accept(); // accept escape character
                     } else {    // illegal escape character
                         
                         // report error
@@ -296,9 +299,13 @@ public final class Scanner {
                         errorPos.charStart = cStart;
                         errorPos.lineFinish = lineCounter;
                         errorPos.charFinish = colCounter;
-                        errorReporter.reportError("illegal escape character", "ERROR", errorPos);
+						// get spelling of illegal escape character
+						String illegalEscChar = "" + currentChar + inspectChar(1);
+					
+                        errorReporter.reportError("%: illegal escape character", illegalEscChar, errorPos);
                         // continue rest of remaining input
                         accept();
+						accept();
                     }
                 } else {
                     // Handle other characters
@@ -316,8 +323,11 @@ public final class Scanner {
                 errorPos.charStart = cStart;
                 errorPos.lineFinish = lStart;
                 errorPos.charFinish = cStart;
-                errorReporter.reportError("unterminated string", "ERROR", errorPos);
+                errorReporter.reportError("%: unterminated string", currentSpelling.toString(), errorPos);
                 // return string token that could be made
+				// currentChar = '"';
+				// accept();
+				return Token.STRINGLITERAL;
             }
 
             // Handle if unterminated string
@@ -375,7 +385,7 @@ public final class Scanner {
     }
 
     private boolean isEscapeCharacter() {
-        switch (currentChar) {
+        switch (inspectChar(1)) {
             case 'b':   // backspace
                 currentChar = '\b';
                 return true;
@@ -401,6 +411,8 @@ public final class Scanner {
                 currentChar = '\\';
                 return true;
             default:
+
+				// currentChar = '\\' + inspectChar(1);
                 return false;
         }
     }
@@ -441,7 +453,7 @@ public final class Scanner {
                     errorPos.lineFinish = errorPos.lineStart;
                     errorPos.charStart = cStart;
                     errorPos.charFinish = errorPos.charStart;
-                    errorReporter.reportError("unterminated comment", "ERROR", errorPos);
+                    errorReporter.reportError("%: unterminated comment", " ", errorPos);
                     // checker = true;
                 }
             } else {
