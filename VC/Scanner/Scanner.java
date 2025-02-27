@@ -206,6 +206,7 @@ public final class Scanner {
             case '.':
        	    //  Handle floats (by calling auxiliary functions)
                 accept();
+                boolean hasDecimal = true;
                 // .digit+ exponent?
                 if (Character.isDigit(currentChar)) {
                     while (Character.isDigit(currentChar)) {
@@ -213,7 +214,7 @@ public final class Scanner {
                     }
                     // .digit+ exponent
                     if (currentChar == 'e' || currentChar == 'E') {
-                        return isExponent();
+                        return isExponent(hasDecimal);
                     } else {
                         return Token.FLOATLITERAL; // e.g. .121
                     }
@@ -251,11 +252,13 @@ public final class Scanner {
         // Case 2: digit+.
         // Case 3: digit+.?exponent
         if (Character.isDigit(currentChar)) {
+            boolean hasDecimal = false;
             accept();
             while (Character.isDigit(currentChar)) {
                 accept();
             }
             if (currentChar == '.') {
+                hasDecimal = true;
                 accept();
                 // Case 1a: digit+ .digit+ exponent
                 if (Character.isDigit(currentChar)) {
@@ -265,20 +268,20 @@ public final class Scanner {
                     }
                     // digit .digit+ exponent e.g. 1.23E
                     if (currentChar == 'e' || currentChar == 'E') {
-                        return isExponent();
+                        return isExponent(hasDecimal);
                     // else 
                     } else {
                         return Token.FLOATLITERAL;
                     }
                 } else if (currentChar == 'e' || currentChar == 'E') {
-                    return isExponent();
+                    return isExponent(hasDecimal);
                 } else {
                     return Token.FLOATLITERAL; // e.g. '1.' in '1. etft' is a float literal
                 }
             // Case 3b: digit+ exponent
             } else if (currentChar == 'e' || currentChar == 'E') {
                 // digitE(+|-)digit+
-                return isExponent();
+                return isExponent(hasDecimal);
             } else {
                 return Token.INTLITERAL;
             }
@@ -290,7 +293,7 @@ public final class Scanner {
             int cStart = colCounter;
             SourcePosition errorPos = new SourcePosition();
             acceptString();
-            while (currentChar != '"' && currentChar != '\n' && currentChar != sourceFile.eof) {
+            while (currentChar != '"' && currentChar != '\n' && currentChar != SourceFile.eof) {
                 // Handle escape characters
                 if (currentChar == '\\') {
                     // accept();
@@ -321,22 +324,20 @@ public final class Scanner {
             if (currentChar == '"') {
                 // terminated string
                 acceptString();
+                // remove double quotes
 				currentSpelling.deleteCharAt(0);
 				currentSpelling.deleteCharAt(currentSpelling.length() - 1);
                 return Token.STRINGLITERAL;
 
-            } else if (currentChar == '\n' || currentChar == sourceFile.eof) {
+            } else if (currentChar == '\n' || currentChar == SourceFile.eof) {
                 // unterminated string
                 errorPos.lineStart = lStart;
                 errorPos.charStart = cStart;
                 errorPos.lineFinish = lStart;
                 errorPos.charFinish = cStart;
+                // remove starting double quote
+                currentSpelling.deleteCharAt(0);
                 errorReporter.reportError("%: unterminated string", currentSpelling.toString(), errorPos);
-                // return string token that could be made
-				// currentChar = '"';
-				// accept();
-				currentSpelling.deleteCharAt(0);
-				// currentSpelling.deleteCharAt(currentSpelling.length() - 1);
 				return Token.STRINGLITERAL;
             }
 
@@ -347,7 +348,7 @@ public final class Scanner {
         return Token.ERROR;
     }
 
-    private int isExponent() {
+    private int isExponent(boolean hasDecimal) {
         // digitE(+|-)digit+ e.g. 121E+12 OR .E+121
         if ((inspectChar(1) == '+' || inspectChar(1) == '-') && Character.isDigit(inspectChar(2))) {
             accept(); // e
@@ -366,7 +367,7 @@ public final class Scanner {
             }
             return Token.FLOATLITERAL;
         // if next character after E is not a digit or a +/- then E should be an ID
-        } else if (currentChar == '.') { 
+        } else if (hasDecimal) { 
             // accept();
             return Token.FLOATLITERAL; // '1.' in '1.ef' is a float
             // return Token.ERROR; // e.g. 121ef or 121e_
@@ -376,13 +377,13 @@ public final class Scanner {
     }
 
     private boolean isBooleanLiteral() {
-        if (currentChar == 't' && inspectChar(1) == 'r' && inspectChar(2) == 'u' && inspectChar(3) == 'e') {
+        if (currentChar == 't' && inspectChar(1) == 'r' && inspectChar(2) == 'u' && inspectChar(3) == 'e' && !Character.isLetter(inspectChar(4)) && !Character.isDigit(inspectChar(4)) && inspectChar(4) != '_') {
             accept();
             accept();
             accept();
             accept();
             return true;
-        } else if (currentChar == 'f' && inspectChar(1) == 'a' && inspectChar(2) == 'l' && inspectChar(3) == 's' && inspectChar(4) == 'e') {
+        } else if (currentChar == 'f' && inspectChar(1) == 'a' && inspectChar(2) == 'l' && inspectChar(3) == 's' && inspectChar(4) == 'e' && !Character.isLetter(inspectChar(5)) && !Character.isDigit(inspectChar(5)) && inspectChar(5) != '_') {
             accept();
             accept();
             accept();
@@ -463,7 +464,7 @@ public final class Scanner {
                     errorPos.lineFinish = errorPos.lineStart;
                     errorPos.charStart = cStart;
                     errorPos.charFinish = errorPos.charStart;
-                    errorReporter.reportError("%: unterminated comment", " ", errorPos);
+                    errorReporter.reportError("%: unterminated comment", "", errorPos);
                     // checker = true;
                 }
             } else {
