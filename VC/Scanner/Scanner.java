@@ -239,7 +239,7 @@ public final class Scanner {
                 return Token.BOOLEANLITERAL;
             } else {
                 accept();
-                while (Character.isLetter(currentChar) || currentChar == '_' || Character.isLetter(currentChar)) {
+                while (Character.isLetter(currentChar) || currentChar == '_' || Character.isDigit(currentChar)) {
                     accept();
                 }
                 return Token.ID;
@@ -314,7 +314,20 @@ public final class Scanner {
                         errorReporter.reportError("%: illegal escape character", illegalEscChar, errorPos);
                         // continue rest of remaining input
                         acceptString();
-						acceptString();
+                        // check if theres a character after the backslash
+                        if (currentChar == '\n' || currentChar == SourceFile.eof) {
+                            // unterminated string
+                            errorPos.lineStart = lStart;
+                            errorPos.charStart = cStart;
+                            errorPos.lineFinish = lStart;
+                            errorPos.charFinish = cStart;
+                            // remove starting double quote
+                            currentSpelling.deleteCharAt(0);
+                            errorReporter.reportError("%: unterminated string", currentSpelling.toString(), errorPos);
+                            return Token.STRINGLITERAL;
+                        } else {
+                            acceptString();
+                        }
                     }
                 } else {
                     // Handle other characters
