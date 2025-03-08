@@ -106,6 +106,7 @@ public class Recogniser {
     private Scanner scanner;
     private ErrorReporter errorReporter;
     private Token currentToken;
+    private boolean identParsed = false;
 
     public Recogniser(Scanner lexer, ErrorReporter reporter) {
         scanner = lexer;
@@ -137,15 +138,20 @@ public class Recogniser {
     }
 
     // ========================== PROGRAMS ========================
+    // program             ->  ( func-decl | var-decl )*
+    // eliminates common prefixes using choice operator
+    // program             ->  type identifier ( para-list compound-stmt | init-declarator-list ";" )*
+    
     public void parseProgram() {
         try {
-            while (typeChecker(currentToken.kind)) {
+            while (currentToken.kind != Token.EOF) {
                 parseType();
                 parseIdent();
+                identParsed = true;
                 if (currentToken.kind == Token.LPAREN) {
-                    parseFuncDecl();
+                    parseFuncDecl();    // para-list compound-stmt
                 } else {
-                    parseVarDecl();
+                    parseVarDecl(identParsed);     // init-declarator-list
                 }
             }
             
@@ -161,29 +167,37 @@ public class Recogniser {
         parseCompoundStmt();
     }
 
-    void parseVarDecl() throws SyntaxError {
-        parseInitDeclaratorList();
+    void parseVarDecl(boolean identParsed) throws SyntaxError {
+        parseInitDeclaratorList(identParsed);
         match(Token.SEMICOLON);
     }
 
-    void parseInitDeclaratorList() throws SyntaxError {
-        parseInitDeclarator();
+    void parseInitDeclaratorList(boolean identParsed) throws SyntaxError {
+        parseInitDeclarator(identParsed);
         while (currentToken.kind == Token.COMMA) {
             accept();
-            parseInitDeclarator();
+            identParsed = false;
+            parseInitDeclarator(identParsed);
         }
     }
 
-    void parseInitDeclarator() throws SyntaxError {
-        parseDeclarator();
+    void parseInitDeclarator(boolean identParsed) throws SyntaxError {
+        parseDeclarator(identParsed);
         if (currentToken.kind == Token.EQ) {
             accept();
+            identParsed = false;
             parseInitialiser();
         }
     }
 
-    void parseDeclarator() throws SyntaxError {         
-        parseIdent();
+    void parseDeclarator(boolean identParsed) throws SyntaxError {     
+        // if (currentToken.kind == Token.ID) {
+        //     parseIdent();
+        // }  
+        if (!identParsed) {
+            parseIdent();
+            identParsed = true;
+        }
         if (currentToken.kind == Token.LBRACKET) {
             accept();
             if (currentToken.kind == Token.INTLITERAL) {
@@ -209,7 +223,7 @@ public class Recogniser {
 
     // ======================= TYPES ==============================
 
-    private boolean typeChecker(int tokenKind) throws SyntaxError {
+    boolean typeChecker(int tokenKind) throws SyntaxError {
         if (tokenKind == Token.VOID || tokenKind == Token.BOOLEAN || tokenKind == Token.INT || tokenKind == Token.FLOAT) {
             return true;
         } else {
@@ -241,7 +255,9 @@ public class Recogniser {
         match(Token.LCURLY);
         // var-decl*
         while (typeChecker(currentToken.kind)) {
-            parseVarDecl();
+            parseType();
+            parseIdent();
+            parseVarDecl(identParsed = true);
         }
         // stmt*
         while (currentToken.kind != Token.RCURLY) {
@@ -525,10 +541,10 @@ public class Recogniser {
                 parseBooleanLiteral();
                 break;
             case Token.STRINGLITERAL:
-                parseStringLiteral();
+                parseStringLiteral();   
                 break;
             default:
-                syntacticError("illegal primary expression", currentToken.spelling);
+                break;
         }
     }
 
@@ -552,7 +568,7 @@ public class Recogniser {
     void parseParaDecl() throws SyntaxError {
         if (typeChecker(currentToken.kind)) {
             parseType();
-            parseDeclarator();
+            parseDeclarator(identParsed = false);
         }
     }
 
