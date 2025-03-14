@@ -129,6 +129,14 @@ public class Parser {
     to.charStart = from.charStart;
   }
 
+  boolean typeChecker(int tokenKind) throws SyntaxError {
+    if (tokenKind == Token.VOID || tokenKind == Token.BOOLEAN || tokenKind == Token.INT || tokenKind == Token.FLOAT) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 // ========================== PROGRAMS ========================
 
   public Program parseProgram() {
@@ -139,7 +147,7 @@ public class Parser {
     start(programPos);
 
     try {
-      List dlAST = parseFuncDeclList();
+      List dlAST = parseDecList();
       finish(programPos);
       programAST = new Program(dlAST, programPos); 
       if (currentToken.kind != Token.EOF) {
@@ -152,38 +160,52 @@ public class Parser {
 
 // ========================== DECLARATIONS ========================
 
-  List parseFuncDeclList() throws SyntaxError {
+  List parseDecList() throws SyntaxError {
     List dlAST = null;
     Decl dAST = null;
 
-    SourcePosition funcPos = new SourcePosition();
-    start(funcPos);
+    // SourcePosition funcPos = new SourcePosition();
+    // start(funcPos);
+    SourcePosition decPos = new SourcePosition();
+    start(decPos);
 
-    dAST = parseFuncDecl();
-    
-    if (currentToken.kind == Token.VOID) {
-      dlAST = parseFuncDeclList();
-      finish(funcPos);
-      dlAST = new DeclList(dAST, dlAST, funcPos);
-    } else {
-      finish(funcPos);
-      dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), funcPos);
+    // typechecker
+    if (typeChecker(currentToken.kind)) {
+      parseType();
+      parseIdent();
     }
+    
+    if (currentToken.kind == Token.LPAREN) {
+      parseFuncDecl();
+    } else {
+      parseVarDecl();
+    }
+
+    // dAST = parseFuncDecl();
+    
+    // if (currentToken.kind == Token.VOID) {
+    //   dlAST = parseFuncDeclList();
+    //   finish(funcPos);
+    //   dlAST = new DeclList(dAST, dlAST, funcPos);
+    // } else {
+    //   finish(funcPos);
+    //   dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), funcPos);
+    // }
     if (dlAST == null) 
       dlAST = new EmptyDeclList(dummyPos);
 
     return dlAST;
   }
 
-  Decl parseFuncDecl() throws SyntaxError {
+  Decl parseFuncDecl(Type tAST, Ident iAST) throws SyntaxError {
 
     Decl fAST = null; 
     
     SourcePosition funcPos = new SourcePosition();
     start(funcPos);
 
-    Type tAST = parseType();
-    Ident iAST = parseIdent();
+    // Type tAST = parseType();
+    // Ident iAST = parseIdent();
     List fplAST = parseParaList();
     Stmt cAST = parseCompoundStmt();
     finish(funcPos);
@@ -191,18 +213,46 @@ public class Parser {
     return fAST;
   }
 
+  Decl parseGlobalVar(Type tAST, Ident iAST) throws SyntaxError{
+
+  }
+
+  Decl parseLocalVar() {
+
+  }
+
 //  ======================== TYPES ==========================
 
   Type parseType() throws SyntaxError {
     Type typeAST = null;
+    int tokenType = currentToken.kind;
 
     SourcePosition typePos = new SourcePosition();
     start(typePos);
 
-    match(Token.VOID);
+    // match(Token.VOID);
+    match(currentToken.kind);
 
     finish(typePos);
-    typeAST = new VoidType(typePos);
+    // typeAST = new VoidType(typePos);
+
+    switch (tokenType) {
+      case Token.VOID:
+        typeAST = new VoidType(typePos);
+        break;
+      case Token.BOOLEAN:
+        typeAST = new BooleanType(typePos);
+        break;
+      case Token.INT:
+        typeAST = new IntType(typePos);
+        break;
+      case Token.FLOAT:
+        typeAST = new FloatType(typePos);
+        break;
+      default:
+        syntacticError("Type expected here", "");
+        break;
+    }
 
     return typeAST;
     }
