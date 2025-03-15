@@ -545,7 +545,7 @@ public class Recogniser {
                 parseStringLiteral();   
                 break;
             default:
-                break;
+                syntacticError("illegal parimary expression", "");
         }
     }
 
