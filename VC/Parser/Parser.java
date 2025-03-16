@@ -127,6 +127,11 @@ public class Parser {
     position.charFinish = previousTokenPosition.charFinish;
   }
 
+  void finishCurrent(SourcePosition position) {
+    position.lineFinish = currentToken.position.lineFinish;
+    position.charFinish = currentToken.position.charFinish;
+  }
+
   void copyStart(SourcePosition from, SourcePosition to) {
     to.lineStart = from.lineStart;
     to.charStart = from.charStart;
@@ -468,6 +473,8 @@ public class Parser {
 
     // match(Token.LPAREN);
     // proper-para-list?
+    
+    
     if (typeChecker(currentToken.kind)) {
       // type declarator
       // => type identifier
@@ -478,7 +485,8 @@ public class Parser {
     } 
 
     // Recursive call to parseParaList
-    if (typeChecker(currentToken.kind)) {
+    // If current token is not beginning of a compound statement
+    if (currentToken.kind != Token.RCURLY) {
       plAST = parseParaList();
       finish(paraListPos);
       plAST = new ParaList(pAST, plAST, paraListPos);
@@ -532,14 +540,55 @@ public class Parser {
   List parseArgList() throws SyntaxError {
     List alAST = null;
     Arg aAST = null;
-    Expr eAST = null;
+    // Expr eAST = null;
 
     SourcePosition argListPos = new SourcePosition();
     start(argListPos);
 
-    
+    // arg-list            -> "(" proper-arg-list? ")"
+    if (currentToken.kind != Token.RPAREN) {
+      // eAST = parseExpr();
+      aAST = parseArg();
+    }
+
+    // Recursive call to parseArgList
+    if (currentToken.kind != Token.RPAREN) {
+      alAST = parseArgList();
+      finish(argListPos);
+      alAST = new ArgList(aAST, alAST, argListPos);
+    } else {
+      accept();
+      finish(argListPos);
+      alAST = new ArgList(aAST, new EmptyArgList(dummyPos), argListPos);
+    }
+
+    if (alAST == null)
+      alAST = new EmptyArgList(dummyPos);
 
     return alAST;
+  }
+
+  Arg parseArg() throws SyntaxError {
+    Arg aAST = null;
+    Expr argExpr = parseExpr();
+
+    SourcePosition argPos = new SourcePosition();
+    start(argPos);
+
+    // arg ( "," arg )*
+    if (currentToken.kind == Token.COMMA) {
+      accept();
+      finish(argPos);
+      aAST = new Arg(argExpr, argPos);
+      return aAST;
+    }
+
+    // match(Token.RPAREN);
+    // finish(argPos);
+    // currentToken should be ')' so return the Arg node
+    finishCurrent(argPos);
+    aAST = new Arg(argExpr, argPos);
+    return aAST;
   }
 
 
