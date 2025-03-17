@@ -206,7 +206,7 @@ public class Parser {
       finish(decListPos);
       dlAST = new DeclList(dAST, dlAST, decListPos);
     // Multiple global variable declarations on same line
-    } else if (dAST != null && currentToken.kind == Token.ID) {
+    } else if (dlAST != null && dAST != null && currentToken.kind == Token.ID) {
       dlAST = null;
       iAST = parseIdent();
       dAST = parseGlobalVar(tAST, iAST, dlAST);
@@ -258,7 +258,7 @@ public class Parser {
       dlAST = parseLocalDecList();
       finish(decListPos);
       dlAST = new DeclList(dAST, dlAST, decListPos);
-    } else if (dAST != null && currentToken.kind == Token.ID) {
+    } else if (dlAST != null && dAST != null && currentToken.kind == Token.ID) {
       dlAST = null;
       iAST = parseIdent();
       dAST = parseLocalVar(tAST, iAST);
