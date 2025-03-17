@@ -191,9 +191,10 @@ public class Parser {
     } else if (currentToken.kind == Token.ID) {
       iAST = parseIdent();
       dAST = parseGlobalVar(tAST, iAST, dlAST);
-    } else {
-      syntacticError("Type expected here", "");
     }
+    // } else {
+    //   // syntacticError("Type expected here", "");
+    // }
 
 
     // if (dAST == null) 
@@ -245,17 +246,23 @@ public class Parser {
       tAST = parseType();
       iAST = parseIdent();
       dAST = parseLocalVar(tAST, iAST);
+    } else if (currentToken.kind == Token.ID) {
+      iAST = parseIdent();
+      dAST = parseLocalVar(tAST, iAST);
     }
     
     // Recursive call to parseDecList
-    if (typeChecker(currentToken.kind)) {
+    if (typeChecker(currentToken.kind) || currentToken.kind == Token.ID) {
       dlAST = parseLocalDecList();
       finish(decListPos);
       dlAST = new DeclList(dAST, dlAST, decListPos);
     } else {
-      finish(decListPos);
-      // dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
-      dlAST = new EmptyDeclList(dummyPos);
+      if (dAST != null) {
+        finish(decListPos);
+        dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
+      } else {
+        dlAST = new EmptyDeclList(dummyPos);
+      }
     }
     
     if (dlAST == null) 
@@ -357,7 +364,7 @@ public class Parser {
     if (currentToken.kind == Token.COMMA) {
       accept(); 
       finish(lvPos);
-      lvAST = new LocalVarDecl(tAST, iAST, lvExpr, lvPos);
+      lvAST = new LocalVarDecl(lvType, lvIdent, lvExpr, lvPos);
       // currentToken should be an identifier so go back to calling parseDecList
       return lvAST; 
     }
@@ -715,10 +722,15 @@ public class Parser {
       finish(paraListPos);
       plAST = new ParaList((ParaDecl) pAST, plAST, paraListPos);
     } else {
-      accept();
+      // Should expect beginning of compount statement
+      match(Token.RPAREN);
       finish(paraListPos);
       // if pAST is null, create an empty ParaList node
+      if (pAST != null) {
+        plAST = new ParaList((ParaDecl) pAST, new EmptyParaList(dummyPos), paraListPos);
+      } else {
       plAST = new EmptyParaList(paraListPos);
+      }
     }
     
     // match(Token.RPAREN);
@@ -756,7 +768,7 @@ public class Parser {
     }
 
     // Should reach end of last parameter here
-    match(Token.RPAREN);
+    // match(Token.RPAREN);
     finish(paraPos);
     pAST = new ParaDecl(pType, pIdent, paraPos);
     
@@ -783,9 +795,13 @@ public class Parser {
       finish(argListPos);
       alAST = new ArgList(aAST, alAST, argListPos);
     } else {
-      accept();
+      match(Token.RPAREN);
       finish(argListPos);
-      alAST = new ArgList(aAST, new EmptyArgList(dummyPos), argListPos);
+      if (aAST != null) {
+        alAST = new ArgList(aAST, new EmptyArgList(dummyPos), argListPos);
+      } else {
+        alAST = new EmptyArgList(dummyPos);
+      }
     }
 
     if (alAST == null)
