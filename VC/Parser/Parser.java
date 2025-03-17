@@ -201,16 +201,17 @@ public class Parser {
     //   dlAST = new EmptyDeclList(dummyPos);
 
     // Recursive call to parseDecList
-    if (typeChecker(currentToken.kind) || currentToken.kind == Token.ID) {
+    if (typeChecker(currentToken.kind)) {
       dlAST = parseDecList();
       finish(decListPos);
       dlAST = new DeclList(dAST, dlAST, decListPos);
-    // } else if (currentToken.kind == Token.ID) {
-    //   dlAST = null;
-    //   iAST = parseIdent();
-    //   dAST = parseGlobalVar(tAST, iAST, dlAST);
-    //   finish(decListPos);
-    //   dlAST = new DeclList(dAST, dlAST, decListPos);
+    // Multiple global variable declarations on same line
+    } else if (dAST != null && currentToken.kind == Token.ID) {
+      dlAST = null;
+      iAST = parseIdent();
+      dAST = parseGlobalVar(tAST, iAST, dlAST);
+      finish(decListPos);
+      dlAST = new DeclList(dAST, dlAST, decListPos);
     } else {
       if (dAST != null) {
         finish(decListPos);
@@ -246,16 +247,23 @@ public class Parser {
       tAST = parseType();
       iAST = parseIdent();
       dAST = parseLocalVar(tAST, iAST);
-    } else if (currentToken.kind == Token.ID) {
-      iAST = parseIdent();
-      dAST = parseLocalVar(tAST, iAST);
     }
+    // } else if (currentToken.kind == Token.ID) {
+    //   iAST = parseIdent();
+    //   dAST = parseLocalVar(tAST, iAST);
+    // }
     
     // Recursive call to parseDecList
-    if (typeChecker(currentToken.kind) || currentToken.kind == Token.ID) {
+    if (typeChecker(currentToken.kind)) {
       dlAST = parseLocalDecList();
       finish(decListPos);
       dlAST = new DeclList(dAST, dlAST, decListPos);
+    } else if (dAST != null && currentToken.kind == Token.ID) {
+      dlAST = null;
+      iAST = parseIdent();
+      dAST = parseLocalVar(tAST, iAST);
+      finish(decListPos);
+      dlAST = new DeclList(dAST, dlAST, decListPos); 
     } else {
       if (dAST != null) {
         finish(decListPos);
