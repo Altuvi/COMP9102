@@ -576,9 +576,9 @@ public class Parser {
 
   Stmt parseForStmt() throws SyntaxError {
     Stmt sAST = null;
-    Expr e1AST = null;
-    Expr e2AST = null;
-    Expr e3AST = null;
+    Expr e1AST = new EmptyExpr(dummyPos);
+    Expr e2AST = new EmptyExpr(dummyPos);
+    Expr e3AST = new EmptyExpr(dummyPos);
     Stmt s1AST = null;
 
     SourcePosition forPos = new SourcePosition();
