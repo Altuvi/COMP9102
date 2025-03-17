@@ -206,7 +206,7 @@ public class Parser {
       finish(decListPos);
       dlAST = new DeclList(dAST, dlAST, decListPos);
     // Multiple global variable declarations on same line
-    } else if (dlAST != null && dAST != null && currentToken.kind == Token.ID) {
+    } else if (dAST != null && currentToken.kind == Token.ID) {
       dlAST = null;
       iAST = parseIdent();
       dAST = parseGlobalVar(tAST, iAST, dlAST);
@@ -548,7 +548,7 @@ public class Parser {
 
   Stmt parseIfStmt() throws SyntaxError {
     Stmt sAST = null;
-    Expr eAST = null;
+    Expr eAST = new EmptyExpr(dummyPos);
     Stmt s1AST = null;
     Stmt s2AST = null;
 
@@ -607,7 +607,7 @@ public class Parser {
 
   Stmt parseWhileStmt() throws SyntaxError {
     Stmt sAST = null;
-    Expr eAST = null;
+    Expr eAST = new EmptyExpr(dummyPos);
     Stmt s1AST = null;
 
     SourcePosition whilePos = new SourcePosition();
@@ -654,7 +654,7 @@ public class Parser {
 
   Stmt parseReturnStmt() throws SyntaxError {
     Stmt sAST = null;
-    Expr eAST = null;
+    Expr eAST = new EmptyExpr(dummyPos);
 
     SourcePosition returnPos = new SourcePosition();
     start(returnPos);
