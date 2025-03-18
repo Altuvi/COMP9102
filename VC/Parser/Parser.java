@@ -191,8 +191,9 @@ public class Parser {
         finish(decListPos);
         dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
 
-        List lastDecList = dlAST; // Keep track of last DecList node
+        List lastDecList = dlAST; // Keep track of last DecList node by using a pointer
 
+        // Multiple global variable declarations on same line
         while (currentToken.kind == Token.COMMA) {
           accept();
           start(decListPos);
@@ -200,10 +201,12 @@ public class Parser {
           dAST = parseGlobalVar(tAST, iAST);
           finish(decListPos);
           List newDecList = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
-          // Append new DecList at end of dlAST
+
+          // Append new DecList at end of lastDecList which should be an EmptyDeclList
           if (lastDecList instanceof DeclList) {
             ((DeclList)lastDecList).DL = newDecList;
           }
+          // Update pointer to last node
           lastDecList = newDecList;
 
           // List temp = dlAST;
