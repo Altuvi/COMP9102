@@ -186,6 +186,15 @@ public class Parser {
 
       if (currentToken.kind == Token.LPAREN) {
         dAST = parseFuncDecl(tAST, iAST);
+        if (typeChecker(currentToken.kind)) {
+          dlAST = parseDecList();
+          finish(decListPos);
+          dlAST = new DeclList(dAST, dlAST, decListPos);
+        } else {
+          finish(decListPos);
+          dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
+        }
+
       } else {
         dAST = parseGlobalVar(tAST, iAST);
         finish(decListPos);
@@ -216,6 +225,12 @@ public class Parser {
           
           // ((DeclList)temp).DL = lastDecList;
           
+        }
+        match(Token.SEMICOLON);
+        if (typeChecker(currentToken.kind)) {
+          dlAST = parseDecList();
+          finish(decListPos);
+          dlAST = new DeclList(dAST, dlAST, decListPos);
         }
       }
     }
@@ -278,6 +293,28 @@ public class Parser {
       tAST = parseType();
       iAST = parseIdent();
       dAST = parseLocalVar(tAST, iAST);
+      finish(decListPos);
+      dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
+      
+      List lastDecList = dlAST; // Keep track of last DecList node by using a pointer
+
+      // Multiple local variable declarations on same line
+      while (currentToken.kind == Token.COMMA) {
+        accept();
+        start(decListPos);
+        iAST = parseIdent();
+        dAST = parseLocalVar(tAST, iAST);
+        finish(decListPos);
+
+        List newDecList = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
+
+        // Append new DecList at end of lastDecList which should be an EmptyDeclList
+        if (lastDecList instanceof DeclList) {
+          ((DeclList)lastDecList).DL = newDecList;
+        }
+        // Update pointer to last node
+        lastDecList = newDecList;
+      }
     }
     // } else if (currentToken.kind == Token.ID) {
     //   iAST = parseIdent();
@@ -295,14 +332,15 @@ public class Parser {
     //   dAST = parseLocalVar(tAST, iAST);
     //   finish(decListPos);
     //   dlAST = new DeclList(dAST, dlAST, decListPos); 
-    } else {
-      if (dAST != null) {
-        finish(decListPos);
-        dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
-      } else {
-        dlAST = new EmptyDeclList(dummyPos);
-      }
     }
+    // } else {
+    //   if (dAST != null) {
+    //     finish(decListPos);
+    //     dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
+    //   } else {
+    //     dlAST = new EmptyDeclList(dummyPos);
+    //   }
+    // }
     
     if (dlAST == null) 
       dlAST = new EmptyDeclList(dummyPos);
@@ -366,7 +404,7 @@ public class Parser {
     } 
 
     // Should reach end of last global variable here
-    match(Token.SEMICOLON);
+    //match(Token.SEMICOLON);
     finish(gvPos);
     gvAST = new GlobalVarDecl(gvType, gvIdent, gvExpr, gvPos);
     return gvAST;
