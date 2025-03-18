@@ -180,27 +180,58 @@ public class Parser {
     Type tAST = null; 
     Ident iAST = null;
     // typechecker
-    if (typeChecker(currentToken.kind)) {
+    while (typeChecker(currentToken.kind)) {
       tAST = parseType();
       iAST = parseIdent();
 
       if (currentToken.kind == Token.LPAREN) {
         dAST = parseFuncDecl(tAST, iAST);
-        if (typeChecker(currentToken.kind)) {
-          dlAST = parseDecList();
-          finish(decListPos);
-          dlAST = new DeclList(dAST, dlAST, decListPos);
+        finish(decListPos);
+
+        List lastDecList = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
+
+        // If very first function declaration
+        if (dlAST == null) {
+          dlAST = lastDecList;
         } else {
-          finish(decListPos);
-          dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
+          // Append new DecList at end of dlAST which should be an EmptyDeclList
+          List temp = dlAST;
+          while (temp instanceof DeclList && ((DeclList)temp).DL instanceof DeclList) {
+            temp = ((DeclList)temp).DL;
+          }
+          
+          ((DeclList)temp).DL = lastDecList;
+          
         }
+        // if (typeChecker(currentToken.kind)) {
+        //   dlAST = parseDecList();
+        //   finish(decListPos);
+        //   dlAST = new DeclList(dAST, dlAST, decListPos);
+        // } else {
+        //   finish(decListPos);
+        //   dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
+        // }
 
       } else {
         dAST = parseGlobalVar(tAST, iAST);
-        finish(decListPos);
-        dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
+        finishCurrent(decListPos);
+        
+        List lastDecList = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
 
-        List lastDecList = dlAST; // Keep track of last DecList node by using a pointer
+        // If very first global variable declaration
+        if (dlAST == null) {
+          dlAST = lastDecList;
+        } else {
+          // Append new DecList at end of dlAST which should be an EmptyDeclList
+          List temp = dlAST;
+          while (temp instanceof DeclList && ((DeclList)temp).DL instanceof DeclList) {
+            temp = ((DeclList)temp).DL;
+          }
+          
+          ((DeclList)temp).DL = lastDecList;
+        }
+
+        // List lastDecList = dlAST; // Keep track of last DecList node by using a pointer
 
         // Multiple global variable declarations on same line
         while (currentToken.kind == Token.COMMA) {
@@ -209,63 +240,36 @@ public class Parser {
           iAST = parseIdent();
           dAST = parseGlobalVar(tAST, iAST);
           finish(decListPos);
-          List newDecList = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
 
-          // Append new DecList at end of lastDecList which should be an EmptyDeclList
-          if (lastDecList instanceof DeclList) {
-            ((DeclList)lastDecList).DL = newDecList;
-          }
+          List newDecList = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
+          ((DeclList)lastDecList).DL = newDecList;  
           // Update pointer to last node
           lastDecList = newDecList;
 
-          // List temp = dlAST;
-          // while (temp instanceof DeclList && ((DeclList)temp).DL != null) {
-          //   temp = ((DeclList)temp).DL; // Traverse to end of dlAST
+
+          // // Append new DecList at end of lastDecList which should be an EmptyDeclList
+          // if (lastDecList instanceof DeclList) {
+          //   ((DeclList)lastDecList).DL = newDecList;
           // }
-          
-          // ((DeclList)temp).DL = lastDecList;
-          
+          // // Update pointer to last node
+          // lastDecList = newDecList;   
         }
-        match(Token.SEMICOLON);
-        if (typeChecker(currentToken.kind)) {
-          dlAST = parseDecList();
-          finish(decListPos);
-          dlAST = new DeclList(dAST, dlAST, decListPos);
-        }
+
+        // match(Token.SEMICOLON);
+        // if (typeChecker(currentToken.kind)) {
+        //   dlAST = parseDecList();
+        //   finish(decListPos);
+        //   dlAST = new DeclList(dAST, dlAST, decListPos);
+        // }
       }
     }
-    // } else if (currentToken.kind == Token.ID) {
-    //   iAST = parseIdent();
-    //   dAST = parseGlobalVar(tAST, iAST);
-    // }
-    // } else {
-    //   // syntacticError("Type expected here", "");
-    // }
-
-
-    // if (dAST == null) 
-    //   dlAST = new EmptyDeclList(dummyPos);
 
     // Recursive call to parseDecList
-    if (typeChecker(currentToken.kind)) {
-      dlAST = parseDecList();
-      finish(decListPos);
-      dlAST = new DeclList(dAST, dlAST, decListPos);
-    // Multiple global variable declarations on same line
-    // } else if (dAST != null && currentToken.kind == Token.ID) {
-    //   dlAST = null;
-    //   iAST = parseIdent();
-    //   dAST = parseGlobalVar(tAST, iAST, dlAST);
+    // if (typeChecker(currentToken.kind)) {
+    //   dlAST = parseDecList();
     //   finish(decListPos);
     //   dlAST = new DeclList(dAST, dlAST, decListPos);
-    // } else {
-    //   if (dAST != null) {
-    //     finish(decListPos);
-    //     dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
-    //   } else {
-    //     dlAST = new EmptyDeclList(dummyPos);
-    //   }
-    }
+    // }
     
     if (dlAST == null) 
       dlAST = new EmptyDeclList(dummyPos);
@@ -289,57 +293,56 @@ public class Parser {
     Type tAST = null;
     Ident iAST = null;
     // typechecker
-    if (typeChecker(currentToken.kind)) {
+    while (typeChecker(currentToken.kind)) {
       tAST = parseType();
       iAST = parseIdent();
       dAST = parseLocalVar(tAST, iAST);
-      finish(decListPos);
-      dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
+      finishCurrent(decListPos);
+
+      List newDecList = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
+
+      if (dlAST == null) {
+        dlAST = newDecList;
+      } else {
+        // Append new DecList at end of lastDecList which should be an EmptyDeclList
+        List temp = dlAST;
+        while (temp instanceof DeclList && ((DeclList)temp).DL instanceof DeclList) {
+          temp = ((DeclList)temp).DL;
+        }
+        
+        ((DeclList)temp).DL = newDecList;
+      }
       
-      List lastDecList = dlAST; // Keep track of last DecList node by using a pointer
+      List lastDecList = newDecList; // Keep track of last DecList node by using a pointer
 
       // Multiple local variable declarations on same line
       while (currentToken.kind == Token.COMMA) {
         accept();
         start(decListPos);
         iAST = parseIdent();
-        dAST = parseLocalVar(tAST, iAST);
+        Decl nextDecl = parseLocalVar(tAST, iAST);
         finish(decListPos);
 
-        List newDecList = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
-
-        // Append new DecList at end of lastDecList which should be an EmptyDeclList
-        if (lastDecList instanceof DeclList) {
-          ((DeclList)lastDecList).DL = newDecList;
-        }
+        List nextDecList = new DeclList(nextDecl, new EmptyDeclList(dummyPos), decListPos);
+        ((DeclList)lastDecList).DL = nextDecList;
         // Update pointer to last node
-        lastDecList = newDecList;
+        lastDecList = nextDecList;
+
+        // // Append new DecList at end of lastDecList which should be an EmptyDeclList
+        // if (lastDecList instanceof DeclList) {
+        //   ((DeclList)lastDecList).DL = newDecList;
+        // }
+        // // Update pointer to last node
+        // lastDecList = newDecList;
       }
+
     }
-    // } else if (currentToken.kind == Token.ID) {
-    //   iAST = parseIdent();
-    //   dAST = parseLocalVar(tAST, iAST);
-    // }
     
     // Recursive call to parseDecList
-    if (typeChecker(currentToken.kind)) {
-      dlAST = parseLocalDecList();
-      finish(decListPos);
-      dlAST = new DeclList(dAST, dlAST, decListPos);
-    // } else if (dlAST != null && dAST != null && currentToken.kind == Token.ID) {
-    //   dlAST = null;
-    //   iAST = parseIdent();
-    //   dAST = parseLocalVar(tAST, iAST);
+    // if (typeChecker(currentToken.kind)) {
+    //   dlAST = parseLocalDecList();
     //   finish(decListPos);
-    //   dlAST = new DeclList(dAST, dlAST, decListPos); 
-    }
-    // } else {
-    //   if (dAST != null) {
-    //     finish(decListPos);
-    //     dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
-    //   } else {
-    //     dlAST = new EmptyDeclList(dummyPos);
-    //   }
+    //   dlAST = new DeclList(dAST, dlAST, decListPos);
     // }
     
     if (dlAST == null) 
@@ -404,7 +407,7 @@ public class Parser {
     } 
 
     // Should reach end of last global variable here
-    //match(Token.SEMICOLON);
+    match(Token.SEMICOLON);
     finish(gvPos);
     gvAST = new GlobalVarDecl(gvType, gvIdent, gvExpr, gvPos);
     return gvAST;
@@ -439,7 +442,7 @@ public class Parser {
     // ==> end of local variable declaration so create the node
     // ==> make new DecList node with next local variable declaration as the child
     if (currentToken.kind == Token.COMMA) {
-      accept(); 
+      // accept(); 
       finish(lvPos);
       lvAST = new LocalVarDecl(lvType, lvIdent, lvExpr, lvPos);
       // currentToken should be an identifier so go back to calling parseDecList
@@ -799,7 +802,7 @@ public class Parser {
       finish(paraListPos);
       plAST = new ParaList((ParaDecl) pAST, plAST, paraListPos);
     } else {
-      // Should expect beginning of compount statement
+      // Should expect beginning of compound statement
       match(Token.RPAREN);
       finish(paraListPos);
       // if pAST is null, create an empty ParaList node
@@ -839,7 +842,7 @@ public class Parser {
     if (currentToken.kind == Token.COMMA) {
       accept(); 
       finish(paraPos);
-      pAST = new ParaDecl(tAST, iAST, paraPos);
+      pAST = new ParaDecl(pType, pIdent, paraPos);
       // currentToken should be the identifier of the next parameter so go back to calling parseDecList
       return pAST; 
     }
