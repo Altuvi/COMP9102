@@ -183,15 +183,43 @@ public class Parser {
     if (typeChecker(currentToken.kind)) {
       tAST = parseType();
       iAST = parseIdent();
+
       if (currentToken.kind == Token.LPAREN) {
         dAST = parseFuncDecl(tAST, iAST);
       } else {
-        dAST = parseGlobalVar(tAST, iAST, dlAST);
+        dAST = parseGlobalVar(tAST, iAST);
+        finish(decListPos);
+        dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
+
+        List lastDecList = dlAST; // Keep track of last DecList node
+
+        while (currentToken.kind == Token.COMMA) {
+          accept();
+          start(decListPos);
+          iAST = parseIdent();
+          dAST = parseGlobalVar(tAST, iAST);
+          finish(decListPos);
+          List newDecList = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
+          // Append new DecList at end of dlAST
+          if (lastDecList instanceof DeclList) {
+            ((DeclList)lastDecList).DL = newDecList;
+          }
+          lastDecList = newDecList;
+
+          // List temp = dlAST;
+          // while (temp instanceof DeclList && ((DeclList)temp).DL != null) {
+          //   temp = ((DeclList)temp).DL; // Traverse to end of dlAST
+          // }
+          
+          // ((DeclList)temp).DL = lastDecList;
+          
+        }
       }
-    } else if (currentToken.kind == Token.ID) {
-      iAST = parseIdent();
-      dAST = parseGlobalVar(tAST, iAST, dlAST);
     }
+    // } else if (currentToken.kind == Token.ID) {
+    //   iAST = parseIdent();
+    //   dAST = parseGlobalVar(tAST, iAST);
+    // }
     // } else {
     //   // syntacticError("Type expected here", "");
     // }
@@ -206,19 +234,19 @@ public class Parser {
       finish(decListPos);
       dlAST = new DeclList(dAST, dlAST, decListPos);
     // Multiple global variable declarations on same line
-    } else if (dAST != null && currentToken.kind == Token.ID) {
-      dlAST = null;
-      iAST = parseIdent();
-      dAST = parseGlobalVar(tAST, iAST, dlAST);
-      finish(decListPos);
-      dlAST = new DeclList(dAST, dlAST, decListPos);
-    } else {
-      if (dAST != null) {
-        finish(decListPos);
-        dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
-      } else {
-        dlAST = new EmptyDeclList(dummyPos);
-      }
+    // } else if (dAST != null && currentToken.kind == Token.ID) {
+    //   dlAST = null;
+    //   iAST = parseIdent();
+    //   dAST = parseGlobalVar(tAST, iAST, dlAST);
+    //   finish(decListPos);
+    //   dlAST = new DeclList(dAST, dlAST, decListPos);
+    // } else {
+    //   if (dAST != null) {
+    //     finish(decListPos);
+    //     dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), decListPos);
+    //   } else {
+    //     dlAST = new EmptyDeclList(dummyPos);
+    //   }
     }
     
     if (dlAST == null) 
@@ -258,12 +286,12 @@ public class Parser {
       dlAST = parseLocalDecList();
       finish(decListPos);
       dlAST = new DeclList(dAST, dlAST, decListPos);
-    } else if (dlAST != null && dAST != null && currentToken.kind == Token.ID) {
-      dlAST = null;
-      iAST = parseIdent();
-      dAST = parseLocalVar(tAST, iAST);
-      finish(decListPos);
-      dlAST = new DeclList(dAST, dlAST, decListPos); 
+    // } else if (dlAST != null && dAST != null && currentToken.kind == Token.ID) {
+    //   dlAST = null;
+    //   iAST = parseIdent();
+    //   dAST = parseLocalVar(tAST, iAST);
+    //   finish(decListPos);
+    //   dlAST = new DeclList(dAST, dlAST, decListPos); 
     } else {
       if (dAST != null) {
         finish(decListPos);
@@ -295,7 +323,7 @@ public class Parser {
     return fAST;
   }
 
-  Decl parseGlobalVar(Type tAST, Ident iAST, List dlAST) throws SyntaxError{
+  Decl parseGlobalVar(Type tAST, Ident iAST) throws SyntaxError{
     // currentToken.kind should point to an expression if there is one
     
     Decl gvAST = null;
@@ -326,7 +354,7 @@ public class Parser {
     // ==> end of global variable declaration so create the node
     // ==> make new DecList node with next global variable declaration as the child
     if (currentToken.kind == Token.COMMA) {
-      accept(); 
+      // accept(); 
       finish(gvPos);
        gvAST = new GlobalVarDecl(gvType, gvIdent, gvExpr, gvPos);
       // currentToken should be an identifier so go back to calling parseDecList
