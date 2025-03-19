@@ -381,7 +381,7 @@ public class Parser {
     // Parse expression
     // if "[" INTLITERAL? "]"
     if (currentToken.kind == Token.LBRACKET) {
-      gvType = parseArrayType();
+      gvType = parseArrayType(tAST);
     } else {
       gvType = tAST;
     }
@@ -425,7 +425,7 @@ public class Parser {
     // Parse expression
     // if "[" INTLITERAL? "]"
     if (currentToken.kind == Token.LBRACKET) {
-      lvType = parseArrayType();
+      lvType = parseArrayType(tAST);
     } else {
       lvType = tAST;
     }
@@ -499,11 +499,11 @@ public class Parser {
   }
 
   // for global/local variable declaration
-  Type parseArrayType() throws SyntaxError {
+  Type parseArrayType(Type tAST) throws SyntaxError {
     // identifier "[" INTLITERAL? "]"
     Type atAST = null; 
     Expr iAST = null;
-    Type tAST = new IntType(dummyPos);
+    Type aType = tAST;
 
     SourcePosition arrayPos = new SourcePosition();
     start(arrayPos);
@@ -521,7 +521,7 @@ public class Parser {
     match(Token.RBRACKET);
     
     finish(arrayPos);
-    atAST = new ArrayType(tAST, iAST, arrayPos);
+    atAST = new ArrayType(aType, iAST, arrayPos);
     return atAST;
   }
   
@@ -831,7 +831,7 @@ public class Parser {
     // type identifier
     // | type identifier "[ INTLITERAL? ]" 
     if (currentToken.kind == Token.LBRACKET) {
-      pType = parseArrayType();
+      pType = parseArrayType(tAST);
     } else {
       pType = tAST;
     }
