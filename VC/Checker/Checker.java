@@ -17,6 +17,7 @@ import VC.Scanner.SourcePosition;
 import VC.ErrorReporter;
 import VC.StdEnvironment;
 
+import java.lang.reflect.Array;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -51,13 +52,13 @@ public final class Checker implements Visitor {
         ARRAY_FUNCTION_AS_SCALAR("*11: attempt to use an array/function as a scalar"),
 
 	// arrays
-        SCALAR_FUNCTION_AS_ARRAY("*12: attempt to use a scalar/function as an array"),
+        SCALAR_FUNCTION_AS_ARRAY("*12: attempt to use a scalar/function as an array"), 
         WRONG_TYPE_FOR_ARRAY_INITIALISER("*13: wrong type for element in array initialiser"),
         INVALID_INITIALISER_ARRAY_FOR_SCALAR("*14: invalid initialiser: array initialiser for scalar"),
         INVALID_INITIALISER_SCALAR_FOR_ARRAY("*15: invalid initialiser: scalar initialiser for array"),
         EXCESS_ELEMENTS_IN_ARRAY_INITIALISER("*16: excess elements in array initialiser"),
         ARRAY_SUBSCRIPT_NOT_INTEGER("*17: array subscript is not an integer"),
-        ARRAY_SIZE_MISSING("*18: array size missing"),
+        ARRAY_SIZE_MISSING("*18: array size missing"), // e.g. int a[];
 
 	// functions
         SCALAR_ARRAY_AS_FUNCTION("*19: attempt to reference a scalar/array as a function"),
@@ -126,6 +127,14 @@ public final class Checker implements Visitor {
         ast.visit(this, null);
     }
 
+    public int countElementsOfArrayInitialiser(List ast) {
+        if (ast.isEmptyArrayExprList()) {
+            return 0;
+        } else {
+            return 1 + countElementsOfArrayInitialiser(((ArrayExprList) ast).EL);
+        }
+    }
+
     // Programs
 
     @Override
@@ -141,7 +150,8 @@ public final class Checker implements Visitor {
         idTable.openScope();
 
 	// Your code goes here
-
+        ast.DL.visit(this, null); // Visit the declaration list
+        ast.SL.visit(this, null); // Visit the statement list
         idTable.closeScope();
         return null;
     }
@@ -160,6 +170,18 @@ public final class Checker implements Visitor {
     public Object visitExprStmt(ExprStmt ast, Object o) {
         ast.E.visit(this, o);
         return null;
+    }
+
+    @Override
+    public Object visitAssignExpr(AssignExpr ast, Object o) {
+        Type tAST1 = (Type) ast.E1.visit(this, o);
+        Type tAST2 = (Type) ast.E2.visit(this, o);
+
+    }
+
+    @Override
+    public Object visitVarExp(VarExpr ast, Object o) {
+        Type tAST = (Type) ast.V.visit(this, o);
     }
 
 
@@ -245,7 +267,49 @@ public final class Checker implements Visitor {
         declareVariable(ast.I, ast);
 
 	// Fill the rest
-	
+        if (ast.T.isVoidType()) {
+            reporter.reportError(ErrorMessage.IDENTIFIER_DECLARED_VOID.getMessage(), ast.I.spelling, ast.I.position);
+        } else if (ast.T.isArrayType()) { // e.g. int a[];
+            ArrayType arrayType = (ArrayType) ast.T.visit(this, o);
+            // Check if the type of the array is void (e.g. void a[])
+            if (arrayType.T.isVoidType()) {
+                reporter.reportError(ErrorMessage.IDENTIFIER_DECLARED_VOID_ARRAY.getMessage(), ast.I.spelling, ast.I.position);
+            } else {
+                // Check if array contains elements, it should by of type int (e.g. x["3131"];)
+                if (!(arrayType.E.isEmptyExpr())) {
+                    if (!(arrayType.E instanceof IntExpr)) {
+                        reporter.reportError(ErrorMessage.ARRAY_SUBSCRIPT_NOT_INTEGER.getMessage(), ast.I.spelling, ast.I.position);
+                    } else {
+                        // Check if the array initialiser has more elements than the array size
+                        // e.g. int a[3] = {1, 2, 3, 4};
+                        // reporter.reportError(ErrorMessage.EXCESS_ELEMENTS_IN_ARRAY_INITIALISER.getMessage(), ast.I.spelling, ast.I.position);
+                        int numElements = countElementsOfArrayInitialiser(((ArrayInitExpr) ast.E).IL);
+                        Integer arraySize = Integer.parseInt(((IntExpr) (arrayType).E).IL.spelling);
+                        if (numElements > arraySize) {
+                            reporter.reportError(ErrorMessage.EXCESS_ELEMENTS_IN_ARRAY_INITIALISER.getMessage(), ast.I.spelling, ast.I.position);
+                        }
+                    }
+                } else { // arrayType.E.isEmptyExpr() (e.g. int a[]...)
+                    if (ast.E.isEmptyExpr()) { // e.g. int a[] = ;
+                        reporter.reportError(ErrorMessage.ARRAY_SIZE_MISSING.getMessage(), ast.I.spelling, ast.I.position);
+                    } else if (!(ast.E instanceof ArrayInitExpr)) { // e.g. int a[] = 1;
+                        reporter.reportError(ErrorMessage.INVALID_INITIALISER_SCALAR_FOR_ARRAY.getMessage(), ast.I.spelling, ast.I.position);
+                    }
+                }
+            }
+        } else {
+            // Check if the initialiser is an array when the type is not an array
+            // e.g. int a = {1, 2, 3};
+            if (ast.E instanceof ArrayExpr) {
+                reporter.reportError(ErrorMessage.INVALID_INITIALISER_ARRAY_FOR_SCALAR.getMessage(), ast.I.spelling, ast.I.position);
+            }
+            // Check if type of initialiser is not the same as the type of the variable
+            // e.g. int a = 1.0;
+            Type initialiserType = (Type) ast.E.visit(this, o);
+            if (initialiserType != null && ast.T != null && !(ast.T.assignable(initialiserType))) {
+                reporter.reportError(ErrorMessage.INCOMPATIBLE_TYPE_FOR_ASSIGNMENT.getMessage(), ast.I.spelling, ast.I.position);
+            }
+        }
         return null;
     }
 
@@ -254,7 +318,52 @@ public final class Checker implements Visitor {
         declareVariable(ast.I, ast);
 	
 	// Fill the rest
+        if (ast.T.isVoidType()) {
+            reporter.reportError(ErrorMessage.IDENTIFIER_DECLARED_VOID.getMessage(), ast.I.spelling, ast.I.position);
+        } else if (ast.T.isArrayType()) { // e.g. 
+            ArrayType arrayType = (ArrayType) ast.T.visit(this, o);
+            // Check if the type of the array is void (e.g. void a[])  
+            if (arrayType.T.isVoidType()) {
+                reporter.reportError(ErrorMessage.IDENTIFIER_DECLARED_VOID_ARRAY.getMessage(), ast.I.spelling, ast.I.position);
+            } else {
+                // Check if array contains elements, it should by of type int (e.g. x["3131"];)
+                if (!arrayType.E.isEmptyExpr()) {
+                    if (!(arrayType.E instanceof IntExpr)) {
+                        reporter.reportError(ErrorMessage.ARRAY_SUBSCRIPT_NOT_INTEGER.getMessage(), ast.I.spelling, ast.I.position);
+                    } else {
+                        // Check if the array initialiser has more elements than the array size
+                        // e.g. int a[3] = {1, 2, 3, 4};
+                        // reporter.reportError(ErrorMessage.EXCESS_ELEMENTS_IN_ARRAY_INITIALISER.getMessage(), ast.I.spelling, ast.I.position);
+                        int numElements = countElementsOfArrayInitialiser(((ArrayInitExpr) ast.E).IL);
+                        Integer arraySize = Integer.parseInt(((IntExpr) (arrayType).E).IL.spelling);
+                        if (numElements > arraySize) {
+                            reporter.reportError(ErrorMessage.EXCESS_ELEMENTS_IN_ARRAY_INITIALISER.getMessage(), ast.I.spelling, ast.I.position);
+                        } 
+                        ast.E.visit(this, o);
+                    }
+                } else { // arrayType.E.isEmptyExpr() (e.g. int a[]...)
+                    if (ast.E.isEmptyExpr()) { // e.g. int a[] = ;
+                        reporter.reportError(ErrorMessage.ARRAY_SIZE_MISSING.getMessage(), ast.I.spelling, ast.I.position);
+                    } else if (!(ast.E instanceof ArrayInitExpr)) { // e.g. int a[] = 1;
+                        reporter.reportError(ErrorMessage.INVALID_INITIALISER_SCALAR_FOR_ARRAY.getMessage(), ast.I.spelling, ast.I.position);
+                    } 
 
+                }
+            }
+        } else {
+            // Check if the initialiser is an array when the type is not an array
+            // e.g. int a = {1, 2, 3};
+            if (ast.E instanceof ArrayExpr) {
+                reporter.reportError(ErrorMessage.INVALID_INITIALISER_ARRAY_FOR_SCALAR.getMessage(), ast.I.spelling, ast.I.position);
+            } 
+            // Check if type of initialiser is not the same as the type of the variable
+            // e.g. int a = 1.0;
+            Type initialiserType = (Type) ast.E.visit(this, o);
+            if (initialiserType != null && ast.T != null && !(ast.T.assignable(initialiserType))) {
+                reporter.reportError(ErrorMessage.INCOMPATIBLE_TYPE_FOR_ASSIGNMENT.getMessage(), ast.I.spelling, ast.I.position);
+            }
+
+        }
         return null;
     }
 
