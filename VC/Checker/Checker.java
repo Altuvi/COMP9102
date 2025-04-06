@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 public final class Checker implements Visitor {
+    private boolean mainFunctionDeclared = false; // Flag to check if main function is present
 
     // Enum for error messages
     private enum ErrorMessage {
@@ -140,6 +141,10 @@ public final class Checker implements Visitor {
     @Override
     public Object visitProgram(Program ast, Object o) {
         ast.FL.visit(this, null);
+        if (!mainFunctionDeclared) {
+            reporter.reportError(ErrorMessage.MISSING_MAIN.getMessage(), "", ast.position);
+            return StdEnvironment.errorType;
+        }
         return null;
     }
 
@@ -150,8 +155,9 @@ public final class Checker implements Visitor {
         idTable.openScope();
 
 	// Your code goes here
-        ast.DL.visit(this, null); // Visit the declaration list
-        ast.SL.visit(this, null); // Visit the statement list
+
+        ast.DL.visit(this, o); // Visit the declaration list
+        ast.SL.visit(this, o); // Visit the statement list
         idTable.closeScope();
         return null;
     }
@@ -173,15 +179,76 @@ public final class Checker implements Visitor {
     }
 
     @Override
-    public Object visitAssignExpr(AssignExpr ast, Object o) {
-        Type tAST1 = (Type) ast.E1.visit(this, o);
-        Type tAST2 = (Type) ast.E2.visit(this, o);
-
+    public Object visitEmptyCompStmt(EmptyCompStmt ast, Object o) {
+        return null;
     }
 
     @Override
-    public Object visitVarExp(VarExpr ast, Object o) {
-        Type tAST = (Type) ast.V.visit(this, o);
+    public Object visitAssignExpr(AssignExpr ast, Object o) {
+        Expr lhs = (Expr) ast.E1;
+        Expr rhs = (Expr) ast.E2;
+        Type tAST1 = (Type) ast.E1.visit(this, o);
+        Type tAST2 = (Type) ast.E2.visit(this, o);
+        if (tAST1.assignable(tAST2)) {
+            ast.type = tAST1;
+        } else {
+            reporter.reportError(ErrorMessage.INCOMPATIBLE_TYPE_FOR_ASSIGNMENT.getMessage(), "", ast.position);
+            ast.type = StdEnvironment.errorType;
+            return StdEnvironment.errorType;
+        }
+        if (lhs instanceof VarExpr) {
+            Decl identDecl = (Decl) ((Ident) ((SimpleVar) ((VarExpr) lhs).V).I).visit(this, o);
+            if (identDecl == null) {
+                reporter.reportError(ErrorMessage.IDENTIFIER_UNDECLARED.getMessage(), ((Ident) ((SimpleVar) ((VarExpr) lhs).V).I).spelling, ((VarExpr) lhs).V.position);
+                ast.type = StdEnvironment.errorType;
+                return StdEnvironment.errorType;
+            } else {
+                if (identDecl instanceof FuncDecl) {
+                    reporter.reportError(ErrorMessage.INVALID_LVALUE_IN_ASSIGNMENT.getMessage(), ((Ident) ((SimpleVar) ((VarExpr) lhs).V).I).spelling, ((VarExpr) lhs).V.position);
+                    ast.type = StdEnvironment.errorType;
+                    return StdEnvironment.errorType;
+                }
+            }
+        } else if (lhs instanceof ArrayExpr) {
+            Decl identDecl = (Decl) ((Ident) ((SimpleVar) ((ArrayExpr) lhs).V).I).visit(this, o);
+            if (identDecl == null) {
+                reporter.reportError(ErrorMessage.IDENTIFIER_UNDECLARED.getMessage(), ((Ident) ((SimpleVar) ((ArrayExpr) lhs).V).I).spelling, ((ArrayExpr) lhs).V.position);
+                ast.type = StdEnvironment.errorType;
+                return StdEnvironment.errorType;
+            } else {
+                if (identDecl instanceof FuncDecl) {
+                    reporter.reportError(ErrorMessage.INVALID_LVALUE_IN_ASSIGNMENT.getMessage(), ((Ident) ((SimpleVar) ((ArrayExpr) lhs).V).I).spelling, ((ArrayExpr) lhs).V.position);
+                    ast.type = StdEnvironment.errorType;
+                    return StdEnvironment.errorType;
+                }
+            }
+        }
+        return ast.type;
+    }
+
+    @Override
+    public Object visitSimpleVar(SimpleVar ast, Object o) {
+        Decl identDecl = (Decl) ast.I.visit(this, o);
+        ast.type = (Type) identDecl.T;
+
+        if (identDecl == null) {
+            reporter.reportError(ErrorMessage.IDENTIFIER_UNDECLARED.getMessage(), ast.I.spelling, ast.I.position);
+            return StdEnvironment.errorType;
+        } else {
+            if (identDecl instanceof FuncDecl) {
+                reporter.reportError(ErrorMessage.SCALAR_ARRAY_AS_FUNCTION.getMessage(), ast.I.spelling, ast.I.position);
+                return StdEnvironment.errorType;
+            } else {
+                if (o instanceof ArrayExpr && !(ast.type.isArrayType())) {
+                    reporter.reportError(ErrorMessage.SCALAR_FUNCTION_AS_ARRAY.getMessage(), ast.I.spelling, ast.I.position);
+                    return StdEnvironment.errorType;
+                } else if (o instanceof VarExpr && ast.type.isArrayType()) {
+                    reporter.reportError(ErrorMessage.ARRAY_FUNCTION_AS_SCALAR.getMessage(), ast.I.spelling, ast.I.position);
+                    return StdEnvironment.errorType;
+                }
+            }
+        }
+        return ast.type;
     }
 
 
@@ -195,8 +262,230 @@ public final class Checker implements Visitor {
         return null;
     }
 
-    // Expressions
+    @Override
+    public Object visitReturnStmt(ReturnStmt ast, Object o) {
+        Expr returnExpr = (Expr) ast.E;
+        String funcName = ((FuncDecl) o).I.spelling;
+        if (returnExpr.isEmptyExpr()) {
+            if (o instanceof FuncDecl) {
+                FuncDecl funcDecl = (FuncDecl) o;
+                if (!(funcDecl.T.isVoidType())) {
+                    reporter.reportError(ErrorMessage.INCOMPATIBLE_TYPE_FOR_RETURN.getMessage(), "", ast.position);
+                    return StdEnvironment.errorType;
+                }
+            }
+        } else {
+            Type returnType = (Type) returnExpr.visit(this, o);
+            if (o instanceof FuncDecl) {
+                FuncDecl funcDecl = (FuncDecl) o;
+                if (!(funcDecl.T.isVoidType()) && !(funcDecl.T.assignable(returnType))) {
+                    reporter.reportError(ErrorMessage.INCOMPATIBLE_TYPE_FOR_RETURN.getMessage(), "", ast.position);
+                    return StdEnvironment.errorType;
+                }
+            }
+        }
+        return null;
+    }
 
+    @Override
+    public Object visitIfStmt(IfStmt ast, Object o) {
+        Type condType = (Type) ast.E.visit(this, o);
+        if (!condType.isBooleanType()) {
+            reporter.reportError(ErrorMessage.IF_CONDITIONAL_NOT_BOOLEAN.getMessage(), "", ast.position);
+            return StdEnvironment.errorType;
+        }
+        return null;
+    }
+
+    @Override
+    public Object visitWhileStmt(WhileStmt ast, Object o) {
+        Type condType = (Type) ast.E.visit(this, o);
+        if (!condType.isBooleanType()) {
+            reporter.reportError(ErrorMessage.WHILE_CONDITIONAL_NOT_BOOLEAN.getMessage(), "", ast.position);
+            return StdEnvironment.errorType;
+        }
+        return null;
+    }
+
+    @Override
+    public Object visitForStmt(ForStmt ast, Object o) {
+        Type condType1 = (Type) ast.E1.visit(this, o);
+        Type condType2 = (Type) ast.E2.visit(this, o);
+        Type condType3 = (Type) ast.E3.visit(this, o);
+        if (condType2 != null && !condType2.isBooleanType()) {
+            reporter.reportError(ErrorMessage.FOR_CONDITIONAL_NOT_BOOLEAN.getMessage(), "", ast.position);
+            return StdEnvironment.errorType;
+        }
+        return null;
+    }
+
+    @Override
+    public Object visitBreakStmt(BreakStmt ast, Object o) {
+        if (!(o instanceof WhileStmt) && !(o instanceof ForStmt)) {
+            reporter.reportError(ErrorMessage.BREAK_NOT_IN_LOOP.getMessage(), "", ast.position);
+            return StdEnvironment.errorType;
+        }
+        return null;
+    }
+
+    @Override
+    public Object visitContinueStmt(ContinueStmt ast, Object o) {
+        if (!(o instanceof WhileStmt) && !(o instanceof ForStmt)) {
+            reporter.reportError(ErrorMessage.CONTINUE_NOT_IN_LOOP.getMessage(), "", ast.position);
+            return StdEnvironment.errorType;
+        }
+        return null;
+    }
+
+    // Expressions
+    @Override
+    public Object visitUnaryExpr(UnaryExpr ast, Object o ) {
+        Type tAST = (Type) ast.E.visit(this, o);
+        Operator op = (Operator) ast.O.visit(this, o);
+        String opString = op.spelling;
+
+        if (opString.equals("!")) {
+            if (!tAST.isBooleanType()) {
+                reporter.reportError(ErrorMessage.INCOMPATIBLE_TYPE_FOR_UNARY_OPERATOR.getMessage(), opString, ast.position);
+                ast.type = StdEnvironment.errorType;
+            } else {
+                ast.type = StdEnvironment.booleanType;
+            }
+        } else if (opString.equals("+") || opString.equals("-")) {
+            if (tAST.isIntType()) {
+                ast.type = StdEnvironment.intType;
+            } else if (tAST.isFloatType()) {
+                ast.type = StdEnvironment.floatType;
+            } else {
+                reporter.reportError(ErrorMessage.INCOMPATIBLE_TYPE_FOR_UNARY_OPERATOR.getMessage(), opString, ast.position);
+                ast.type = StdEnvironment.errorType;
+            }
+        }
+        return ast.type;
+    }
+
+    @Override
+    public Object visitBinaryExpr(BinaryExpr ast, Object o) {
+        Type tAST1 = (Type) ast.E1.visit(this, o);
+        Operator op = (Operator) ast.O.visit(this, o);
+        String opString = op.spelling;
+        Type tAST2 = (Type) ast.E2.visit(this, o);
+        switch (opString) {
+            case "+", "-", "*", "/", "<", "<=", ">", ">=" -> {
+                if (tAST1.isIntType() && tAST2.isIntType()) {
+                    ast.type = StdEnvironment.intType;
+                } else if (tAST1.isFloatType() && tAST2.isFloatType()) {
+                    ast.type = StdEnvironment.floatType;
+                } else if (tAST1.isIntType() && tAST2.isFloatType()) {
+                    op.spelling = "i2f";
+                    UnaryExpr unaryNode = new UnaryExpr(op, ast.E1, dummyPos);
+                    ast.E1 = unaryNode;
+                    ast.type = StdEnvironment.floatType;
+                } else if (tAST1.isFloatType() && tAST2.isIntType()) {
+                    op.spelling = "i2f";
+                    UnaryExpr unaryNode = new UnaryExpr(op, ast, dummyPos);
+                    ast.E2 = unaryNode;
+                    ast.type = StdEnvironment.floatType;
+                } else {
+                    reporter.reportError(ErrorMessage.INCOMPATIBLE_TYPE_FOR_BINARY_OPERATOR.getMessage(), opString, ast.position);
+                    ast.type = StdEnvironment.errorType;
+                }
+            }
+            case "==", "!=" -> {
+                if (tAST1.isIntType() && tAST2.isIntType()) {
+                    ast.type = StdEnvironment.booleanType;
+                } else if (tAST1.isFloatType() && tAST2.isFloatType()) {
+                    ast.type = StdEnvironment.booleanType;
+                } else if (tAST1.isStringType() && tAST2.isStringType()) {
+                    ast.type = StdEnvironment.booleanType;
+                } else if (tAST1.isBooleanType() && tAST2.isBooleanType()) {
+                    ast.type = StdEnvironment.booleanType;
+                } else {
+                    reporter.reportError(ErrorMessage.INCOMPATIBLE_TYPE_FOR_BINARY_OPERATOR.getMessage(), opString, ast.position);
+                    ast.type = StdEnvironment.errorType;
+                }
+            }
+            case "&&", "||" -> {
+                if (tAST1.isBooleanType() && tAST2.isBooleanType()) {
+                    ast.type = StdEnvironment.booleanType;
+                } else {
+                    reporter.reportError(ErrorMessage.INCOMPATIBLE_TYPE_FOR_BINARY_OPERATOR.getMessage(), opString, ast.position);
+                    ast.type = StdEnvironment.errorType;
+                }
+            }
+        }
+        return ast.type;
+    }
+
+    @Override
+    public Object visitArrayInitExpr(ArrayInitExpr ast, Object o) {
+        // Need to check if left child of var dec node is array type
+        Decl decl = (Decl) o;
+        Type typeDecl = (Type) decl.T;
+        ast.type = (Type) ast.IL.visit(this, o);
+        if (!typeDecl.isArrayType()) {
+            reporter.reportError(ErrorMessage.INVALID_INITIALISER_ARRAY_FOR_SCALAR.getMessage(), "", ast.position);
+            return StdEnvironment.errorType;
+        } else if (!ast.type.isArrayType()) {
+            reporter.reportError(ErrorMessage.INVALID_INITIALISER_ARRAY_FOR_SCALAR.getMessage(), "", ast.position);
+            return StdEnvironment.errorType;
+        }
+        return null;
+    }
+
+    @Override
+    public Object visitArrayExprList(ArrayExprList ast, Object o) {
+        Decl decl = (Decl) o;
+        ArrayType typeDecl = (ArrayType) decl.T;
+        Type arrType = (Type) typeDecl.T;
+
+        Type eAST = (Type) ast.E.visit(this, o); // Type of expression in the array
+        
+        if (arrType.isIntType()) {
+            if (!eAST.isIntType()) {
+                reporter.reportError(ErrorMessage.WRONG_TYPE_FOR_ARRAY_INITIALISER.getMessage(), "", ast.position);
+                return StdEnvironment.errorType;
+            } else {
+                return null;
+            }
+        } else if (arrType.isFloatType()) {
+            if (!eAST.isFloatType()) {
+                reporter.reportError(ErrorMessage.WRONG_TYPE_FOR_ARRAY_INITIALISER.getMessage(), "", ast.position);
+                return StdEnvironment.errorType;
+            } else {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    @Override
+    public Object visitArrayExpr(ArrayExpr ast, Object o) {
+        // Need to check if type of var child is of array type that had been declared
+        Type varType = (Type) ast.V.visit(this, ast);
+        Expr indexExpr = (Expr) ast.E;
+        if (!varType.isArrayType()) {
+            reporter.reportError(ErrorMessage.ARRAY_FUNCTION_AS_SCALAR.getMessage(), null, dummyPos);
+            return StdEnvironment.errorType;
+        } else if (!(indexExpr instanceof IntExpr)) {
+            reporter.reportError(ErrorMessage.ARRAY_SUBSCRIPT_NOT_INTEGER.getMessage(), null, dummyPos);
+            return StdEnvironment.errorType;
+        }
+        // Also check if index is <= size of declared array
+
+        return ast.type;
+    }
+
+    @Override 
+    public Object visitEmptyArrayExprList(EmptyArrayExprList ast, Object o) {
+        return null;
+    }
+
+    @Override
+    public Object visitCallExpr(CallExpr ast, Object o) {
+        return null;
+    }
 
     @Override
     public Object visitEmptyExpr(EmptyExpr ast, Object o) {
@@ -224,8 +513,8 @@ public final class Checker implements Visitor {
 
     @Override
     public Object visitVarExpr(VarExpr ast, Object o) {
-	ast.type = (Type) ast.V.visit(this, null);
-	return ast.type;
+        ast.type = (Type) ast.V.visit(this, ast);
+        return ast.type;
     }
 
     @Override
@@ -238,6 +527,7 @@ public final class Checker implements Visitor {
 
     @Override
     public Object visitFuncDecl(FuncDecl ast, Object o) {
+        declareVariable(ast.I, ast);
         idTable.insert(ast.I.spelling, ast); // Insert the function declaration into the symbol table
 
         // Your code goes here
@@ -245,6 +535,31 @@ public final class Checker implements Visitor {
         // HINT: Pass ast as the 2nd argument so that the formal parameters
         // of the function can be extracted when the function body is visited.
 	//
+        Type funcReturnType = (Type) ast.T.visit(this, o);
+        Ident funcIdent = ast.I;
+        String funcName = funcIdent.spelling;
+        ParaList funcParaList = (ParaList) ast.PL;
+        if (funcName.equals("main")) {
+            if (mainFunctionDeclared) {
+                reporter.reportError(ErrorMessage.IDENTIFIER_REDECLARED.getMessage(), funcName, funcIdent.position);
+                return StdEnvironment.errorType;
+            } else {
+                mainFunctionDeclared = true;
+                if (!funcReturnType.isIntType()) {
+                    reporter.reportError(ErrorMessage.MAIN_RETURN_TYPE_NOT_INT.getMessage(), funcName, funcIdent.position);
+                    return StdEnvironment.errorType;
+                }
+                if (!funcParaList.isEmptyParaList()) {
+                    reporter.reportError(ErrorMessage.TOO_MANY_ACTUAL_PARAMETERS.getMessage(), funcName, funcIdent.position);
+                    return StdEnvironment.errorType;
+                }
+            }
+        }
+        // 
+        if (!funcParaList.isEmptyParaList()) {
+            funcParaList.visit(this, ast); // Visit the parameter list
+        }
+
         ast.S.visit(this, ast); // Visit the function body
 
         return null;
@@ -339,7 +654,7 @@ public final class Checker implements Visitor {
                         if (numElements > arraySize) {
                             reporter.reportError(ErrorMessage.EXCESS_ELEMENTS_IN_ARRAY_INITIALISER.getMessage(), ast.I.spelling, ast.I.position);
                         } 
-                        ast.E.visit(this, o);
+                        ast.E.visit(this, ast);
                     }
                 } else { // arrayType.E.isEmptyExpr() (e.g. int a[]...)
                     if (ast.E.isEmptyExpr()) { // e.g. int a[] = ;
@@ -387,6 +702,8 @@ public final class Checker implements Visitor {
                 reporter.reportError(ErrorMessage.IDENTIFIER_DECLARED_VOID_ARRAY.getMessage(), ast.I.spelling, ast.I.position);
             }
         }
+
+
         return null;
     }
 
@@ -398,6 +715,24 @@ public final class Checker implements Visitor {
     // Arguments
    
     // Your visitor methods for arguments go here
+    @Override
+    public Object visitArgList(ArgList ast, Object o) {
+        ast.A.visit(this, o);
+        ast.AL.visit(this, o);
+        return null;
+    }
+
+    @Override 
+    public Object visitArg(Arg ast, Object o) {
+        Type argType = (Type) ast.E.visit(this, o);
+        ast.type = argType;
+        return ast.type;
+    }
+
+    @Override
+    public Object visitEmptyArgList(EmptyArgList ast, Object o) {
+        return null;
+    }
 
     // Types
 
