@@ -136,6 +136,14 @@ public final class Checker implements Visitor {
         }
     }
 
+    public Type compareParaLists(FuncDecl funcDecl, ArgList argList, AST ast) {
+        int paraCount = 0;
+        int argCount = 0;
+        Type funcType = funcDecl.T;
+        Type astType = null;
+
+        
+    }
     // Programs
 
     @Override
@@ -484,6 +492,31 @@ public final class Checker implements Visitor {
 
     @Override
     public Object visitCallExpr(CallExpr ast, Object o) {
+        Ident cIdent = (Ident) ast.I;
+        ArgList cArgList = (ArgList) ast.AL;
+        FuncDecl funcDecl = (FuncDecl) ast.I.visit(this, o); // pointer to the function declaration
+        
+        if (funcDecl == null) {
+            reporter.reportError(ErrorMessage.IDENTIFIER_UNDECLARED.getMessage(), ast.I.spelling, ast.I.position);
+            return StdEnvironment.errorType;
+        } else {
+            if (funcDecl.PL.isEmptyParaList()) {
+                if (!cArgList.isEmptyArgList()) {
+                    reporter.reportError(ErrorMessage.TOO_MANY_ACTUAL_PARAMETERS.getMessage(), funcDecl.I.spelling, ast.position);
+                    return StdEnvironment.errorType;
+                } else {
+                    return ast.type = (Type) funcDecl.T;
+                }
+            } else {
+                if (cArgList.isEmptyArgList()) {
+                    reporter.reportError(ErrorMessage.TOO_FEW_ACTUAL_PARAMETERS.getMessage(), funcDecl.I.spelling, ast.position);
+                    return StdEnvironment.errorType;
+                } else {
+                    // Compare non-empty parameter list with non-empty argument list
+                }
+            }
+        }
+
         return null;
     }
 
