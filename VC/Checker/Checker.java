@@ -136,13 +136,44 @@ public final class Checker implements Visitor {
         }
     }
 
-    public Type compareParaLists(FuncDecl funcDecl, ArgList argList, AST ast) {
+    public Type compareParaLists(ParaList funcParaList, ArgList argList, FuncDecl funcDecl, AST ast) {
+    
         int paraCount = 0;
         int argCount = 0;
-        Type funcType = funcDecl.T;
         Type astType = null;
+    
+        if (funcParaList.isEmptyParaList() && !argList.isEmptyArgList()) {
+            reporter.reportError(ErrorMessage.TOO_FEW_ACTUAL_PARAMETERS.getMessage(), funcDecl.I.spelling, funcDecl.I.position);
+            return StdEnvironment.errorType;
+        } else if (!funcParaList.isEmptyParaList() && argList.isEmptyArgList()) {
+            reporter.reportError(ErrorMessage.TOO_MANY_ACTUAL_PARAMETERS.getMessage(), funcDecl.I.spelling, funcDecl.I.position);
+            return StdEnvironment.errorType;
+        } else if (funcParaList.isEmptyParaList() && argList.isEmptyArgList()) {
+            return funcDecl.T;
+        } else {
+            Type paraType = (Type) funcParaList.P.visit(this, ast);
+            Type argType = (Type) argList.A.visit(this, ast);
+            if (!paraType.assignable(argType)) {
+                reporter.reportError(ErrorMessage.WRONG_TYPE_FOR_ACTUAL_PARAMETER.getMessage(), funcDecl.I.spelling, funcDecl.I.position);
+                return StdEnvironment.errorType;
+            } else {
+                // Check array parameters/arguments
+                if (paraType.isArrayType() && argType.isArrayType()) {
+                    // TODO:
+                }
+                // Check if the parameter is a function
+                else if (paraType.isVoidType() && argType.isVoidType()) {
+                    reporter.reportError(ErrorMessage.SCALAR_ARRAY_AS_FUNCTION.getMessage(), funcDecl.I.spelling, funcDecl.I.position);
+                    return StdEnvironment.errorType;
+                } 
+                
+                // Recursive call
+                else {
 
-        
+                }
+            }
+        }
+        return astType;
     }
     // Programs
 
@@ -500,21 +531,7 @@ public final class Checker implements Visitor {
             reporter.reportError(ErrorMessage.IDENTIFIER_UNDECLARED.getMessage(), ast.I.spelling, ast.I.position);
             return StdEnvironment.errorType;
         } else {
-            if (funcDecl.PL.isEmptyParaList()) {
-                if (!cArgList.isEmptyArgList()) {
-                    reporter.reportError(ErrorMessage.TOO_MANY_ACTUAL_PARAMETERS.getMessage(), funcDecl.I.spelling, ast.position);
-                    return StdEnvironment.errorType;
-                } else {
-                    return ast.type = (Type) funcDecl.T;
-                }
-            } else {
-                if (cArgList.isEmptyArgList()) {
-                    reporter.reportError(ErrorMessage.TOO_FEW_ACTUAL_PARAMETERS.getMessage(), funcDecl.I.spelling, ast.position);
-                    return StdEnvironment.errorType;
-                } else {
-                    // Compare non-empty parameter list with non-empty argument list
-                }
-            }
+            ast.type = compareParaLists(funcDecl.PL, ast.AL, funcDecl, ast);
         }
 
         return null;
