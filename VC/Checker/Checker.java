@@ -265,14 +265,11 @@ public final class Checker implements Visitor {
             ast.type = (Type) identDecl.T;
             if (identDecl instanceof FuncDecl) {
                 reporter.reportError(ErrorMessage.ARRAY_FUNCTION_AS_SCALAR.getMessage(), ast.I.spelling, ast.I.position);
-                return StdEnvironment.errorType;
             } else {
                 if (o instanceof ArrayExpr && !(ast.type.isArrayType())) {
                     reporter.reportError(ErrorMessage.SCALAR_FUNCTION_AS_ARRAY.getMessage(), ast.I.spelling, ast.I.position);
-                    return StdEnvironment.errorType;
                 } else if (o instanceof VarExpr && ast.type.isArrayType() && !(((Expr)o).parent instanceof Arg)) {
                     reporter.reportError(ErrorMessage.ARRAY_FUNCTION_AS_SCALAR.getMessage(), ast.I.spelling, ast.I.position);
-                    return StdEnvironment.errorType;
                 }
             }
         }
@@ -299,7 +296,6 @@ public final class Checker implements Visitor {
                 FuncDecl funcDecl = (FuncDecl) o;
                 if (!(funcDecl.T.isVoidType())) {
                     reporter.reportError(ErrorMessage.INCOMPATIBLE_TYPE_FOR_RETURN.getMessage(), "", ast.position);
-                    return StdEnvironment.errorType;
                 }
             }
         } else {
@@ -308,7 +304,6 @@ public final class Checker implements Visitor {
                 FuncDecl funcDecl = (FuncDecl) o;
                 if (!(funcDecl.T.isVoidType()) && !(funcDecl.T.assignable(returnType))) {
                     reporter.reportError(ErrorMessage.INCOMPATIBLE_TYPE_FOR_RETURN.getMessage(), "", ast.position);
-                    return StdEnvironment.errorType;
                 }
             }
         }
@@ -320,7 +315,6 @@ public final class Checker implements Visitor {
         Type condType = (Type) ast.E.visit(this, o);
         if (!condType.isBooleanType()) {
             reporter.reportError(ErrorMessage.IF_CONDITIONAL_NOT_BOOLEAN.getMessage(), "", ast.position);
-            return StdEnvironment.errorType;
         }
         ast.S1.visit(this, o);
         ast.S2.visit(this, o);
@@ -333,7 +327,6 @@ public final class Checker implements Visitor {
         Type condType = (Type) ast.E.visit(this, o);
         if (!condType.isBooleanType()) {
             reporter.reportError(ErrorMessage.WHILE_CONDITIONAL_NOT_BOOLEAN.getMessage(), "", ast.position);
-            return StdEnvironment.errorType;
         }
         loopCounter++;
         ast.S.visit(this, o);
@@ -343,10 +336,12 @@ public final class Checker implements Visitor {
 
     @Override
     public Object visitForStmt(ForStmt ast, Object o) {
+        ast.E1.visit(this, o);
+        ast.E3.visit(this, o);
         Type condType2 = (Type) ast.E2.visit(this, o);
         if (!ast.E2.isEmptyExpr() && !condType2.isBooleanType()) {
             reporter.reportError(ErrorMessage.FOR_CONDITIONAL_NOT_BOOLEAN.getMessage(), "", ast.position);
-            return StdEnvironment.errorType;
+
         }
         loopCounter++;
         ast.S.visit(this, o);
@@ -356,9 +351,8 @@ public final class Checker implements Visitor {
 
     @Override
     public Object visitBreakStmt(BreakStmt ast, Object o) {
-        if (loopCounter == 0) {
+        if (loopCounter <= 0) {
             reporter.reportError(ErrorMessage.BREAK_NOT_IN_LOOP.getMessage(), "", ast.position);
-            return StdEnvironment.errorType;
         }
         return null;
     }
@@ -491,9 +485,9 @@ public final class Checker implements Visitor {
             ast.IL.visit(this,o);
             int numElements = countElementsOfArrayInitialiser(ast.IL);
             Integer arraySize = Integer.parseInt(((IntExpr) ((ArrayType)typeDecl).E).IL.spelling);
-            if (numElements > arraySize) {
-                reporter.reportError(ErrorMessage.EXCESS_ELEMENTS_IN_ARRAY_INITIALISER.getMessage(), "", ast.position);
-            } 
+            // if (numElements > arraySize) {
+            //     reporter.reportError(ErrorMessage.EXCESS_ELEMENTS_IN_ARRAY_INITIALISER.getMessage(), "", ast.position);
+            // } 
         }
 
         
@@ -524,7 +518,7 @@ public final class Checker implements Visitor {
         Type indexType = (Type) ast.E.visit(this, null);
         if (!(indexType.isIntType())) {
             reporter.reportError(ErrorMessage.ARRAY_SUBSCRIPT_NOT_INTEGER.getMessage(), null, dummyPos);
-            return StdEnvironment.errorType;
+            // return StdEnvironment.errorType;
         }
         // Also check if index is <= size of declared array
 
@@ -708,13 +702,15 @@ public final class Checker implements Visitor {
                     } else {
                         // Check if the array initialiser has more elements than the array size
                         // e.g. int a[3] = {1, 2, 3, 4};
-                        // reporter.reportError(ErrorMessage.EXCESS_ELEMENTS_IN_ARRAY_INITIALISER.getMessage(), ast.I.spelling, ast.I.position);
-                        int numElements = countElementsOfArrayInitialiser(((ArrayInitExpr) ast.E).IL);
-                        Integer arraySize = Integer.parseInt(((IntExpr) (arrayType).E).IL.spelling);
-                        if (numElements > arraySize) {
-                            reporter.reportError(ErrorMessage.EXCESS_ELEMENTS_IN_ARRAY_INITIALISER.getMessage(), ast.I.spelling, ast.I.position);
+                       
+                        if ((ast.E) instanceof ArrayInitExpr) {
+                            int numElements = countElementsOfArrayInitialiser(((ArrayInitExpr) ast.E).IL);
+                            Integer arraySize = Integer.parseInt(((IntExpr) (arrayType).E).IL.spelling);
+                            if (numElements > arraySize) {
+                                reporter.reportError(ErrorMessage.EXCESS_ELEMENTS_IN_ARRAY_INITIALISER.getMessage(), ast.I.spelling, ast.I.position);
+                            }
+                            ast.E.visit(this, ast);
                         }
-                        ast.E.visit(this, ast);
                     }
                 } else { // arrayType.E.isEmptyExpr() (e.g. int a[]...)
                     if (ast.E.isEmptyExpr()) { // e.g. int a[] = ;
@@ -762,10 +758,14 @@ public final class Checker implements Visitor {
                         // Check if the array initialiser has more elements than the array size
                         // e.g. int a[3] = {1, 2, 3, 4};
                         // reporter.reportError(ErrorMessage.EXCESS_ELEMENTS_IN_ARRAY_INITIALISER.getMessage(), ast.I.spelling, ast.I.position);
-                        if (!(ast.E instanceof ArrayInitExpr)) { // e.g. int a[] = 1;
-                            reporter.reportError(ErrorMessage.INVALID_INITIALISER_SCALAR_FOR_ARRAY.getMessage(), ast.I.spelling, ast.I.position);
-                        } 
-                        ast.E.visit(this, ast);
+                        if ((ast.E) instanceof ArrayInitExpr) {
+                            int numElements = countElementsOfArrayInitialiser(((ArrayInitExpr) ast.E).IL);
+                            Integer arraySize = Integer.parseInt(((IntExpr) (arrayType).E).IL.spelling);
+                            if (numElements > arraySize) {
+                                reporter.reportError(ErrorMessage.EXCESS_ELEMENTS_IN_ARRAY_INITIALISER.getMessage(), ast.I.spelling, ast.I.position);
+                            }
+                            ast.E.visit(this, ast);
+                        }
                     }
                 }
             }
