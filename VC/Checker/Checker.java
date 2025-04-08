@@ -258,7 +258,7 @@ public final class Checker implements Visitor {
         Decl identDecl = (Decl) ast.I.visit(this, o);
         
 
-     if (identDecl == null) {
+        if (identDecl == null) {
             reporter.reportError(ErrorMessage.IDENTIFIER_UNDECLARED.getMessage(), ast.I.spelling, ast.I.position);
             return StdEnvironment.errorType;
         } else {
