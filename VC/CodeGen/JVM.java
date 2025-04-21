@@ -25,6 +25,20 @@ public final class JVM {
     // Array instructions
 
     /* Add the array instructions used yourself */
+    public static final String NEWARRAY = "newarray";
+    public static final String ANEWARRAY = "anewarray";
+    public static final String ARRAYLENGTH = "arraylength";
+    // array storage
+    public static final String FASTORE = "fastore";
+    public static final String IASTORE = "iastore";
+    public static final String AASTORE = "aastore";
+    public static final String BASTORE = "bastore";
+    // array loading
+    public static final String IALOAD = "iaload";
+    public static final String FALOAD = "faload";
+    public static final String AALOAD = "aaload";
+    public static final String BALOAD = "baload";
+
 
     // Arithmetic instructions
     public static final String FADD = "fadd";

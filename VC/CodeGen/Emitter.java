@@ -24,6 +24,7 @@ private ErrorReporter errorReporter;
 private String inputFilename;
 private String classname;
 private String outputFilename;
+private int currentArrayIndex;
 
 public Emitter(String inputFilename, ErrorReporter reporter) {
     this.inputFilename = inputFilename;
@@ -68,7 +69,13 @@ public Object visitProgram(Program ast, Object o) {
     	DeclList dlAST = (DeclList) list;
     	if (dlAST.D instanceof GlobalVarDecl) {
             GlobalVarDecl vAST = (GlobalVarDecl) dlAST.D;
-            emit(JVM.STATIC_FIELD, vAST.I.spelling, VCtoJavaType(vAST.T));
+            if (vAST.T.isArrayType()) {
+                Type arrayType = ((ArrayType)vAST.T).T; // get element type
+                emit(JVM.STATIC_FIELD, vAST.I.spelling, "[" + VCtoJavaType(arrayType));
+            } else {
+                emit(JVM.STATIC_FIELD, vAST.I.spelling, VCtoJavaType(vAST.T));
+            }
+            
         }
     	list = dlAST.DL;
     }
@@ -92,19 +99,46 @@ public Object visitProgram(Program ast, Object o) {
     	DeclList dlAST = (DeclList) list;
     	if (dlAST.D instanceof GlobalVarDecl) {
             GlobalVarDecl vAST = (GlobalVarDecl) dlAST.D;
-            if (!vAST.E.isEmptyExpr()) {
-            	vAST.E.visit(this, frame);
-            } else {
-            	if (vAST.T.equals(StdEnvironment.floatType))
-            	    emit(JVM.FCONST_0);
-                else
-            	    emit(JVM.ICONST_0);
+            // Check type of global variable
+            if (vAST.T.isArrayType()) {
+                Type arrayType = ((ArrayType)vAST.T).T; // get element type
+                IntLiteral arraySize = ((IntExpr)((ArrayType) vAST.T).E).IL;
+                String arraySizeStr = arraySize.spelling;
+                emitICONST(Integer.parseInt(arraySizeStr)); // Push array size
+                frame.push();
 
-             	frame.push();
+                if (arrayType.isIntType() || arrayType.isBooleanType()) {
+                    emit(JVM.NEWARRAY, "int");
+                } else if (arrayType.isFloatType()) {
+                    emit(JVM.NEWARRAY, "float");
+                }
+
+                if (!vAST.E.isEmptyExpr()) {
+                    //do init of array
+                    vAST.E.visit(this, frame);
+                }
+                 
+                emitPUTSTATIC("["+VCtoJavaType(arrayType), vAST.I.spelling);
+                frame.pop();
+
+            } else { 
+                //doing scalar
+                if (!vAST.E.isEmptyExpr()) {
+                    vAST.E.visit(this, frame);
+                } else {
+                    if (vAST.T.equals(StdEnvironment.floatType))
+                        emit(JVM.FCONST_0);
+                    else
+                        emit(JVM.ICONST_0);
+    
+                     frame.push();
+                }
+    
+                emitPUTSTATIC(VCtoJavaType(vAST.T), vAST.I.spelling); 
+                frame.pop();
+                }
             }
-            emitPUTSTATIC(VCtoJavaType(vAST.T), vAST.I.spelling); 
-            frame.pop();
-    	}
+            
         list = dlAST.DL;
     }
 
@@ -177,7 +211,7 @@ public Object visitCompoundStmt(CompoundStmt ast, Object o) {
     return null;
 }
 
-Object visitReturnStmt(ReturnStmt ast, Object o) {
+public Object visitReturnStmt(ReturnStmt ast, Object o) {
     Frame frame = (Frame)o;
 
 /*
@@ -193,7 +227,154 @@ must be translated into a RETURN rather than IRETURN instruction.
     }
 
 /*  Your other code goes here for handling return <Expr>. */ 
-        
+    if (ast.E.isEmptyExpr()) {
+        emit(JVM.RETURN);
+    } else { // Return has an expression
+        ast.E.visit(this, o);
+
+        Type returnType = ast.E.type;
+
+        if (returnType.isIntType() || returnType.isBooleanType()) {
+            emit(JVM.IRETURN);
+        } else if (returnType.isFloatType()) {
+            emit(JVM.FRETURN);
+        }
+        frame.pop();
+    }
+    return null;
+}
+
+public Object visitExprStmt(ExprStmt ast, Object o) {
+    Frame frame = (Frame) o;
+    ast.E.visit(this, o);
+    if (!ast.E.type.isVoidType()) {
+        emit(JVM.POP);
+        frame.pop();
+    }
+    return null;
+}
+
+public Object visitIfStmt(IfStmt ast, Object o) {
+    Frame frame = (Frame) o;
+    String elseLabel = frame.getNewLabel();
+    String endLabel = frame.getNewLabel();
+
+    // Evaluate condition
+    ast.E.visit(this, frame);
+
+    // If condition is false (0), jump to else part
+    emit(JVM.IFEQ, elseLabel);
+    frame.pop();
+
+    // "Then" part
+    ast.S1.visit(this, o);
+    emit(JVM.GOTO, endLabel);
+
+    // "Else" part
+    emit(elseLabel + ":");
+    if (ast.S2.isEmptyStmt()) {
+        // do nothing
+    } else {
+        ast.S2.visit(this, o);
+    }
+
+    // End of if statement
+    emit(endLabel + ":");
+    return null;
+}
+
+public Object visitWhileStmt(WhileStmt ast, Object o) {
+    Frame frame = (Frame) o;
+    String loopStartLabel = frame.getNewLabel();
+    String loopEndLabel = frame.getNewLabel();
+
+    // Push labels for break/continue
+    frame.conStack.push(loopStartLabel); // Continue goes back to condition
+    frame.brkStack.push(loopEndLabel); // Break goes to end of loop
+
+    emit(loopStartLabel + ":");
+
+    ast.E.visit(this, frame); // Evaluate condition (leaves 0 or 1)
+    emit(JVM.IFEQ, loopEndLabel); // If false, exit loop
+    frame.pop(); // Pop condition value
+
+    ast.S.visit(this, o); //  Loop body
+    emit(JVM.GOTO, loopStartLabel); // Go back to condition
+
+    emit(loopEndLabel + ":"); // End of loop
+    // Pop labels for break/continue
+    if (!frame.conStack.isEmpty()) frame.conStack.pop();
+    if (!frame.brkStack.isEmpty()) frame.brkStack.pop();
+
+    return null;
+}
+
+public Object visitBreakStmt(BreakStmt ast, Object o) {
+    Frame frame  = (Frame) o;  
+    String loopEndlabel = frame.brkStack.peek();
+    emit(JVM.GOTO, loopEndlabel);
+    return null;
+}
+
+public Object visitContinueStmt(ContinueStmt ast, Object o) {
+    Frame frame  = (Frame) o;  
+    String loopStartLabel = frame.conStack.peek();
+    emit(JVM.GOTO, loopStartLabel);
+    return null;
+}
+
+public Object visitForStmt(ForStmt ast, Object o) {
+    Frame frame = (Frame) o;
+
+    // Labels
+    String conditionLabel = frame.getNewLabel(); // Start of condition check
+    String updateLabel = frame.getNewLabel(); // Start of update expression
+    String endLabel = frame.getNewLabel(); // End of loop
+
+    // Push labels for break/continue
+    frame.conStack.push(updateLabel); // Continue goes back to condition
+    frame.brkStack.push(endLabel); // Break goes to end of loop
+
+    // Initialization
+    if (!ast.E1.isEmptyExpr()) {
+        ast.E1.visit(this, o);
+        // If E1 produced a value (e.g., assignment result), and it's not used, pop it
+        if (!ast.E1.type.isVoidType()) {
+            emit(JVM.POP);
+            frame.pop();
+        }
+    }
+
+    // Condition check
+    emit(conditionLabel + ":");
+    if (!ast.E2.isEmptyExpr()) {
+        ast.E2.visit(this, o); // Evaluate condition => 0 or 1
+        emit(JVM.IFEQ, endLabel); // If false, jump to end
+        frame.pop(); // Pop condition value
+    }
+
+    // Loop body
+    ast.S.visit(this, frame); // Execute loop body
+
+    // Update expression
+    emit(updateLabel + ":");
+    if (!ast.E3.isEmptyExpr()) {
+        ast.E3.visit(this, frame); // Evaluate update expression
+        if (!ast.E3.type.isVoidType()) {
+            emit(JVM.POP);
+            frame.pop();
+        }
+    }
+
+    emit(JVM.GOTO, conditionLabel); // Go back to condition check
+
+    // Loop End
+    emit(endLabel + ":");
+    // Pop labels for break/continue
+    if (!frame.conStack.isEmpty()) frame.conStack.pop();
+    if (!frame.brkStack.isEmpty()) frame.brkStack.pop();
+
+    return null;
 }
 
 public Object visitEmptyStmtList(EmptyStmtList ast, Object o) {
@@ -209,6 +390,16 @@ public Object visitEmptyStmt(EmptyStmt ast, Object o) {
 }
 
 // Expressions
+
+public Object visitAssignExpr(AssignExpr ast, Object o) {
+    Frame frame  = (Frame) o;
+    
+    // Evaluate the right-hand side expression first
+    ast.E2.visit(this, o); // Leaves value on stack
+
+    // 
+
+}
 
 public Object visitCallExpr(CallExpr ast, Object o) {
     Frame frame = (Frame) o;
@@ -296,6 +487,178 @@ public Object visitCallExpr(CallExpr ast, Object o) {
     	if (! retType.equals("V"))
             frame.push();
     }
+    return null;
+}
+
+public Object visitUnaryExpr(UnaryExpr ast, Object o) {
+    Frame frame = (Frame) o;
+    String op = ast.O.spelling;
+
+    ast.E.visit(this, o); // Evaluate expression, leave value on stack
+
+    if (op.equals("+")) {
+        // Unary plus is a no-op for numeric types
+    } else if (op.equals("-")) {
+        if (ast.E.type.isIntType()) {
+            emit(JVM.INEG);
+        } else if (ast.E.type.isFloatType()) {
+            emit(JVM.FNEG);
+        }
+    } else if (op.equals("!")) {
+        // Logical NOT for boolean type (int 0 or 1)
+        String trueLabel = frame.getNewLabel();
+        String endLabel = frame.getNewLabel();
+
+        // If expression value is not 0 (true), jump to trueLabel
+        emit(JVM.IFNE, trueLabel);
+        // Value is 0 (false), so push 1 (true)
+        emit(JVM.ICONST_1);
+        emit(JVM.GOTO, endLabel);
+
+        emit(trueLabel + ":"); 
+        // Value is 1 (true), so push 0 (false)
+        emit(JVM.ICONST_0);
+        emit(endLabel + ":");
+
+    }
+    return null;
+}
+
+public Object visitBinaryExpr(BinaryExpr ast, Object o) {
+    Frame frame = (Frame) o;
+    String op = ast.O.spelling;
+    Type type1 = ast.E1.type;
+    Type type2 = ast.E2.type;
+    Type resultType = ast.type;
+
+    // Handle && and || operators
+    if (op.equals("&&")) {
+        String falseLabel = frame.getNewLabel();
+        String endLabel = frame.getNewLabel();
+
+        ast.E1.visit(this, o); // Evaluate LHS
+        emit(JVM.IFEQ, falseLabel); // If LHS is false (0), jump to falseLabel
+        frame.pop(); // Pop LHS value (it was true, IFEQ didn't consume it)
+
+        ast.E2.visit(this, o); // Evaluate RHS
+        emit(JVM.IFEQ, falseLabel); // If RHS is false (0), jump to falseLabel
+        frame.pop(); // Pop RHS value (it was true, IFEQ didn't consume it)
+
+        // Both LHS and RHS are true (1)
+        emit(JVM.ICONST_1); // Push 1 (true)
+        emit(JVM.GOTO, endLabel); // Jump to endLabel
+
+        emit(falseLabel + ":"); // falseLabel
+        emit(JVM.ICONST_0); // Push 0 (false)
+
+        emit(endLabel + ":"); // endLabel
+        frame.push(); // Push result of && operation
+        return null;
+
+    } else if (op.equals("||")) {
+        String trueLabel = frame.getNewLabel();
+        String endLabel = frame.getNewLabel();
+
+        ast.E1.visit(this, o); // Evaluate LHS
+        emit(JVM.IFNE, trueLabel); // If LHS is true (1), jump to trueLabel
+        frame.pop(); // Pop LHS value (it was false, IFEQ didn't consume it)
+
+        ast.E2.visit(this, o); // Evaluate RHS
+        emit(JVM.IFNE, trueLabel); // If RHS is true (1), jump to trueLabel
+        frame.pop(); // Pop RHS value (it was false, IFEQ didn't consume it)
+
+        // Both LHS and RHS are false (0)
+        emit(JVM.ICONST_0); // Push 0 (false)
+        emit(JVM.GOTO, endLabel); // Jump to endLabel
+
+        emit(trueLabel + ":"); // trueLabel
+        emit(JVM.ICONST_1); // Push 1 (true)
+
+        emit(endLabel + ":"); // endLabel
+        frame.push(); // Push result of || operation
+        return null;
+    }
+
+    // Handle other binary operators
+    ast.E1.visit(this, o); // push value 1
+    ast.E2.visit(this, o); // push value 2
+
+    if (resultType.isIntType()) {
+        switch (op) {
+            case "i+": emit(JVM.IADD); break;
+            case "i-": emit(JVM.ISUB); break;
+            case "i*": emit(JVM.IMUL); break;
+            case "i/": emit(JVM.IDIV); break;
+            // Comparision yields boolean (0 or 1)
+            case "i==": emitIF_ICMPCOND("i==", frame); return null;
+            case "i!=": emitIF_ICMPCOND("i!=", frame); return null;
+            case "i<": emitIF_ICMPCOND("i<", frame); return null;
+            case "i<=": emitIF_ICMPCOND("i<=", frame); return null;
+            case "i>": emitIF_ICMPCOND("i>", frame); return null;
+            case "i>=": emitIF_ICMPCOND("i>=", frame); return null;
+        }
+        frame.pop(); 
+    } else if (resultType.isFloatType()) {
+        switch (op) {
+            case "f+": emit(JVM.FADD); break;
+            case "f-": emit(JVM.FSUB); break;
+            case "f*": emit(JVM.FMUL); break;
+            case "f/": emit(JVM.FDIV); break;
+            // Comparision yields boolean (0 or 1)
+            case "f==": emitFCMP("f==", frame); return null;
+            case "f!=": emitFCMP("f!=", frame); return null;
+            case "f<": emitFCMP("f<", frame); return null;
+            case "f<=": emitFCMP("f<=", frame); return null;
+            case "f>": emitFCMP("f>", frame); return null;
+            case "f>=": emitFCMP("f>=", frame); return null;
+        }
+        frame.pop();
+    } else if (resultType.isBooleanType()) {
+        // ==, != for booleans treated as integers
+        switch (op) {
+            case "i==": emitIF_ICMPCOND("i==", frame); return null;
+            case "i!=": emitIF_ICMPCOND("i!=", frame); return null;
+        }
+        frame.pop();
+    }
+    return null;
+}
+
+public Object visitVarExpr(VarExpr ast, Object o) {
+    Frame frame = (Frame) o;
+    Ident varIdent = ((SimpleVar) ast.V).I;
+    Decl varDecl = (Decl) varIdent.decl;
+
+    
+    if (varDecl.isLocalVarDecl() || varDecl.isParaDecl()) {
+        int index = (varDecl).index;
+        Type varType = varDecl.T;
+        
+        if (varType.isIntType() || varType.isBooleanType()) {
+            emit(JVM.ILOAD, index);
+        } else if (varType.isFloatType()) {
+            emit(JVM.FLOAD, index);
+        } else if (varType.isArrayType()) {
+            emit(JVM.ALOAD, index);
+        } 
+        frame.push();
+    } else if (varDecl.isGlobalVarDecl()) {
+        String varName = varIdent.spelling;
+        Type varType = varDecl.T;
+
+        if (varType.isIntType() || varType.isBooleanType()) {
+            emitGETSTATIC(VCtoJavaType(varType), varName);
+        } else if (varType.isFloatType()) {
+            emitGETSTATIC(VCtoJavaType(varType), varName);
+        }
+        else if (varType.isArrayType()) {
+            // Get type of elements in the array
+            String elementType = VCtoJavaType(((ArrayType) varType).T);
+            emitGETSTATIC("[" + elementType, varName);
+        }
+        frame.push();
+    }
+
     return null;
 }
 
@@ -428,16 +791,110 @@ public Object visitLocalVarDecl(LocalVarDecl ast, Object o) {
     emit(JVM.VAR + " " + ast.index + " is " + ast.I.spelling + " " + T + " from " + (String) frame.scopeStart.peek() + " to " +  (String) frame.scopeEnd.peek());
 
     if (!ast.E.isEmptyExpr()) {
-    	ast.E.visit(this, o);
-
-    	if (ast.T.equals(StdEnvironment.floatType)) {
-            emitFSTORE(ast.I);
-        } else {
-            emitISTORE(ast.I);
-    	}
-    frame.pop();
+        // If expression is array initialisation, leave reference on stack
+        if (ast.E.type.isArrayType()) {
+            IntLiteral arraySize = ((IntExpr)((ArrayType) ast.T).E).IL;
+            String arraySizeStr = arraySize.spelling;
+            emitICONST(Integer.parseInt(arraySizeStr)); // Push array size
+            // Check type of array local variable declaration
+            if (ast.T.isIntType() || ast.T.isBooleanType()) {
+                emit(JVM.NEWARRAY, "int"); // addresses on stack
+            } else if (ast.T.isFloatType()) {
+                emit(JVM.NEWARRAY, "float"); // addresses on stack
+            }
+            ast.E.visit(this, o);
+            emit(JVM.ASTORE, ast.index); // Store reference in local variable
+            frame.pop();
+        } else { // Scalar case
+            ast.E.visit(this, o);
+            if (ast.T.equals(StdEnvironment.floatType)) {
+                emitFSTORE(ast.I);
+            } else {
+                emitISTORE(ast.I);
+            }
+        frame.pop();
+        }
+    } else {
+        if(ast.E.type.isArrayType()){
+            IntLiteral arraySize = ((IntExpr)((ArrayType) ast.T).E).IL;
+            String arraySizeStr = arraySize.spelling;
+            emitICONST(Integer.parseInt(arraySizeStr)); // Push array size
+            // Check type of array local variable declaration
+            if (ast.T.isIntType() || ast.T.isBooleanType()) {
+                emit(JVM.NEWARRAY, "int"); // addresses on stack
+            } else if (ast.T.isFloatType()) {
+                emit(JVM.NEWARRAY, "float"); // addresses on stack
+            }
+            emit(JVM.ASTORE, ast.index); // Store reference in local variable
+            frame.pop();
+        }
     }
 
+    return null;
+}
+
+// Arrays
+public Object visitArrayExprList(ArrayExprList ast, Object o) {
+    Frame frame = (Frame) o;
+    emit(JVM.DUP);
+    emitICONST(currentArrayIndex);
+    frame.push();
+    currentArrayIndex++;
+    ast.E.visit(this, o);
+    if (ast.E.type.isIntType() || ast.E.type.isBooleanType()) {
+        emit(JVM.IASTORE);
+    } else if (ast.E.type.isFloatType()) {
+        emit(JVM.FASTORE);
+    }
+    frame.pop(3);
+    ast.EL.visit(this, o);
+    return null;
+}
+
+public Object visitArrayInitExpr(ArrayInitExpr ast, Object o) {
+    Frame frame = (Frame) o;
+    currentArrayIndex = 0;
+    ast.IL.visit(this, o);
+    return null;
+}
+
+public Object visitArrayExpr(ArrayExpr ast, Object o) {
+    Frame frame = (Frame) o;
+    Ident arrayExprIdent = ((SimpleVar) ast.V).I;
+    Decl arrayExprDecl = (Decl) arrayExprIdent.decl;
+
+    if (arrayExprDecl.isLocalVarDecl() || arrayExprDecl.isParaDecl()) {
+        int index = (arrayExprDecl).index; // local variable index
+        Type arrayExprType = arrayExprDecl.T;
+
+        emit(JVM.ALOAD, index); // Load array reference
+        frame.push();
+        ast.E.visit(this, o); // Push index of array element
+        
+        if (arrayExprType.isIntType() || arrayExprType.isBooleanType()) {
+            emit(JVM.IALOAD);
+        } else if (arrayExprType.isFloatType()) {
+            emit(JVM.FALOAD);
+        }
+        frame.pop();
+    } else if (arrayExprDecl.isGlobalVarDecl()) {
+        String arrayExprName = arrayExprIdent.spelling;
+        Type arrayExprType = arrayExprDecl.T;
+        emitGETSTATIC("["+VCtoJavaType(arrayExprType), arrayExprName);
+
+        ast.E.visit(this, o);
+
+        if (arrayExprType.isIntType() || arrayExprType.isBooleanType()) {
+            emit(JVM.IALOAD);
+        } else if (arrayExprType.isFloatType()) {
+            emit(JVM.FALOAD);
+        }
+        frame.pop();
+    }
+    return null;
+}
+
+public Object visitEmptyArrayExprList(EmptyArrayExprList ast, Object o) {
     return null;
 }
 
@@ -503,6 +960,16 @@ public Object visitVoidType(VoidType ast, Object o) {
 public Object visitErrorType(ErrorType ast, Object o) {
     return null;
 }
+
+public Object visitStringType(StringType ast, Object o) {
+    return null;
+}
+
+public Object visitArrayType(ArrayType ast, Object o) {
+    return null;
+}
+
+
 
 // Literals, Identifiers and Operators 
 
