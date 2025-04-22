@@ -101,15 +101,15 @@ public Object visitProgram(Program ast, Object o) {
             GlobalVarDecl vAST = (GlobalVarDecl) dlAST.D;
             // Check type of global variable
             if (vAST.T.isArrayType()) {
-                Type arrayType = ((ArrayType)vAST.T).T; // get element type
+                Type elementType = ((ArrayType)vAST.T).T; // get element type
                 IntLiteral arraySize = ((IntExpr)((ArrayType) vAST.T).E).IL;
                 String arraySizeStr = arraySize.spelling;
                 emitICONST(Integer.parseInt(arraySizeStr)); // Push array size
                 frame.push();
 
-                if (arrayType.isIntType() || arrayType.isBooleanType()) {
+                if (elementType.isIntType() || elementType.isBooleanType()) {
                     emit(JVM.NEWARRAY, "int");
-                } else if (arrayType.isFloatType()) {
+                } else if (elementType.isFloatType()) {
                     emit(JVM.NEWARRAY, "float");
                 }
 
@@ -118,11 +118,11 @@ public Object visitProgram(Program ast, Object o) {
                     vAST.E.visit(this, frame);
                 }
                  
-                emitPUTSTATIC("["+VCtoJavaType(arrayType), vAST.I.spelling);
+                emitPUTSTATIC("["+VCtoJavaType(elementType), vAST.I.spelling);
                 frame.pop();
 
             } else { 
-                //doing scalar
+                // doing scalar
                 if (!vAST.E.isEmptyExpr()) {
                     vAST.E.visit(this, frame);
                 } else {
@@ -394,11 +394,92 @@ public Object visitEmptyStmt(EmptyStmt ast, Object o) {
 public Object visitAssignExpr(AssignExpr ast, Object o) {
     Frame frame  = (Frame) o;
     
-    // Evaluate the right-hand side expression first
-    ast.E2.visit(this, o); // Leaves value on stack
+    if (ast.E1 instanceof VarExpr) {
+        VarExpr lVar = (VarExpr) ast.E1;
+        Ident varIdent = ((SimpleVar) lVar.V).I;
+        Decl varDecl = (Decl) varIdent.decl;
 
-    // 
+        // Evaluate RHS, leaving value on stack
+        ast.E2.visit(this, o);
 
+        // Duplicate value on stack
+        emit(JVM.DUP); // Stack: ..., value, value
+        frame.push();  // Account for duplicate value
+
+        // Determine where to store the value
+        if (varDecl.isLocalVarDecl() || varDecl.isParaDecl()) {
+            int index = (varDecl).index;
+            Type varType = varDecl.T;
+
+            if (varType.isIntType() || varType.isBooleanType()) {
+                emit(JVM.ISTORE, index);
+            } else if (varType.isFloatType()) {
+                emit(JVM.FSTORE, index);
+            } else if (varType.isArrayType()) {
+                emit(JVM.ASTORE, index);
+            }
+            frame.pop(); // Stack: ..., value
+        } else if (varDecl.isGlobalVarDecl()) {
+            String varName = varIdent.spelling;
+            Type varType = varDecl.T;
+            String typeDesc;
+
+            if (varType.isArrayType()) {
+                Type elementType = ((ArrayType) varType).T; // get element type
+                typeDesc = "[" + VCtoJavaType(elementType);
+            } else {
+                typeDesc = VCtoJavaType(varType);
+            }
+            emitPUTSTATIC(typeDesc, varName);
+            frame.pop(); // Stack: ..., value
+        }    
+        // Duplicated value remains on stack as the result of the assignment expression
+    } else if (ast.E1 instanceof ArrayExpr) {
+        // Assignment to an array element: array[index] = value
+        ArrayExpr lArray = (ArrayExpr) ast.E1;
+        Ident arrayIdent = ((SimpleVar) lArray.V).I;
+        Decl arrayDecl = (Decl) arrayIdent.decl;
+
+        // Load the array reference onto the stack
+        if (arrayDecl.isLocalVarDecl() || arrayDecl.isParaDecl()) {
+            int index = (arrayDecl).index;
+            emit(JVM.ALOAD, index); // Stack: ..., arrayRef
+        } else if (arrayDecl.isGlobalVarDecl()) {
+            String arrayName = arrayIdent.spelling;
+            Type elementType = ((ArrayType) arrayDecl.T).T; // get element type
+            String typeDesc = "[" + VCtoJavaType(elementType);
+            emitGETSTATIC(typeDesc, arrayName); // Stack: ..., arrayRef
+        }
+        frame.push(); // Account for array reference
+
+        // Evaluate the index expression
+        lArray.E.visit(this, o); // Stack: ..., arrayRef, index
+        
+        // Evaluate RHS expression
+        ast.E2.visit(this, o); // Stack: ..., arrayRef, index, value
+
+        // Duplicate RHS value and insert it below arrayRef and index
+        // Needed because xASTORE consumes arrayRef, index, and value
+        // and we want "value" to be the result of the assignment
+        emit(JVM.DUP_X2); // Stack: ..., value, arrayRef, index, value
+        frame.push(); // Account for duplicate value
+
+        // Determine element type and emit appropriate array store instruction
+        Type elementType = ((ArrayType) arrayDecl.T).T; // get element type
+        if (elementType.isIntType() || elementType.isBooleanType()) {
+            emit(JVM.IASTORE); // Consumes arrayRef, index, value
+        } else if (elementType.isFloatType()) {
+            emit(JVM.FASTORE); // Consumes arrayRef, index, value
+        } else {
+            emit(JVM.AASTORE);
+        }
+        frame.pop(3); // Account for array_ref, index, value consumed by xASTORE
+
+        // Stack: ..., value
+        // Duplicated value remains on the stack as the result of the assignment expression
+    }
+
+    return null;
 }
 
 public Object visitCallExpr(CallExpr ast, Object o) {
@@ -865,28 +946,28 @@ public Object visitArrayExpr(ArrayExpr ast, Object o) {
 
     if (arrayExprDecl.isLocalVarDecl() || arrayExprDecl.isParaDecl()) {
         int index = (arrayExprDecl).index; // local variable index
-        Type arrayExprType = arrayExprDecl.T;
+        Type elementType = arrayExprDecl.T;
 
         emit(JVM.ALOAD, index); // Load array reference
         frame.push();
         ast.E.visit(this, o); // Push index of array element
         
-        if (arrayExprType.isIntType() || arrayExprType.isBooleanType()) {
+        if (elementType.isIntType() || elementType.isBooleanType()) {
             emit(JVM.IALOAD);
-        } else if (arrayExprType.isFloatType()) {
+        } else if (elementType.isFloatType()) {
             emit(JVM.FALOAD);
         }
         frame.pop();
     } else if (arrayExprDecl.isGlobalVarDecl()) {
         String arrayExprName = arrayExprIdent.spelling;
-        Type arrayExprType = arrayExprDecl.T;
-        emitGETSTATIC("["+VCtoJavaType(arrayExprType), arrayExprName);
+        Type elementType = arrayExprDecl.T;
+        emitGETSTATIC("["+VCtoJavaType(elementType), arrayExprName);
 
         ast.E.visit(this, o);
 
-        if (arrayExprType.isIntType() || arrayExprType.isBooleanType()) {
+        if (elementType.isIntType() || elementType.isBooleanType()) {
             emit(JVM.IALOAD);
-        } else if (arrayExprType.isFloatType()) {
+        } else if (elementType.isFloatType()) {
             emit(JVM.FALOAD);
         }
         frame.pop();
