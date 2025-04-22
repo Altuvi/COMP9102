@@ -171,7 +171,7 @@ public final class Checker implements Visitor {
     @Override
     public Object visitCompoundStmt(CompoundStmt ast, Object o) {
         idTable.openScope();
-
+        ((FuncDecl) o).PL.visit(this, null);
 	// Your code goes here
 
         ast.DL.visit(this, o); // Visit the declaration list
@@ -659,10 +659,6 @@ public final class Checker implements Visitor {
                 }
                 
             }
-        }
-        // 
-        if (!funcParaList.isEmptyParaList()) {
-            funcParaList.visit(this, ast); // Visit the parameter list
         }
 
         ast.S.visit(this, ast); // Visit the function body

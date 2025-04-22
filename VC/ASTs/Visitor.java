@@ -37,19 +37,19 @@ public interface Visitor {
   public abstract Object visitEmptyStmt(EmptyStmt ast, Object o);
 
   // Expressions
-  public abstract Object visitIntExpr(IntExpr ast, Object o);
-  public abstract Object visitFloatExpr(FloatExpr ast, Object o);
-  public abstract Object visitBooleanExpr(BooleanExpr ast, Object o);
-  public abstract Object visitStringExpr(StringExpr ast, Object o);
-  public abstract Object visitUnaryExpr(UnaryExpr ast, Object o);
-  public abstract Object visitBinaryExpr(BinaryExpr ast, Object o);
-  public abstract Object visitArrayInitExpr(ArrayInitExpr ast, Object o);
-  public abstract Object visitArrayExprList(ArrayExprList ast, Object o);
-  public abstract Object visitArrayExpr(ArrayExpr ast, Object o);
-  public abstract Object visitVarExpr(VarExpr ast, Object o);
+  public abstract Object visitIntExpr(IntExpr ast, Object o); // done
+  public abstract Object visitFloatExpr(FloatExpr ast, Object o); // done
+  public abstract Object visitBooleanExpr(BooleanExpr ast, Object o); // done
+  public abstract Object visitStringExpr(StringExpr ast, Object o); // done
+  public abstract Object visitUnaryExpr(UnaryExpr ast, Object o); // me done
+  public abstract Object visitBinaryExpr(BinaryExpr ast, Object o); // me done
+  public abstract Object visitArrayInitExpr(ArrayInitExpr ast, Object o); // me done?
+  public abstract Object visitArrayExprList(ArrayExprList ast, Object o); // me done?
+  public abstract Object visitArrayExpr(ArrayExpr ast, Object o); // me done?
+  public abstract Object visitVarExpr(VarExpr ast, Object o); // done
   public abstract Object visitCallExpr(CallExpr ast, Object o);
   public abstract Object visitAssignExpr(AssignExpr ast, Object o);
-  public abstract Object visitEmptyExpr(EmptyExpr ast, Object o);
+  public abstract Object visitEmptyExpr(EmptyExpr ast, Object o); // done
 
   // Literals and identifiers
   public abstract Object visitIntLiteral(IntLiteral ast, Object o);

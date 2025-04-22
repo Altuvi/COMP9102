@@ -1,0 +1,10 @@
+int main()
+{
+  int i = getInt();
+  int j = getInt();
+  if ((i>=j))
+    putIntLn(i);
+  else
+    putIntLn(j);
+  return 0;
+}

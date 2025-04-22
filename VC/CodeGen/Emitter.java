@@ -871,71 +871,150 @@ public Object visitLocalVarDecl(LocalVarDecl ast, Object o) {
 
     emit(JVM.VAR + " " + ast.index + " is " + ast.I.spelling + " " + T + " from " + (String) frame.scopeStart.peek() + " to " +  (String) frame.scopeEnd.peek());
 
-    if (!ast.E.isEmptyExpr()) {
-        // If expression is array initialisation, leave reference on stack
-        if (ast.E.type.isArrayType()) {
-            IntLiteral arraySize = ((IntExpr)((ArrayType) ast.T).E).IL;
-            String arraySizeStr = arraySize.spelling;
-            emitICONST(Integer.parseInt(arraySizeStr)); // Push array size
-            // Check type of array local variable declaration
-            if (ast.T.isIntType() || ast.T.isBooleanType()) {
-                emit(JVM.NEWARRAY, "int"); // addresses on stack
-            } else if (ast.T.isFloatType()) {
-                emit(JVM.NEWARRAY, "float"); // addresses on stack
-            }
-            ast.E.visit(this, o);
-            emit(JVM.ASTORE, ast.index); // Store reference in local variable
-            frame.pop();
-        } else { // Scalar case
-            ast.E.visit(this, o);
-            if (ast.T.equals(StdEnvironment.floatType)) {
-                emitFSTORE(ast.I);
-            } else {
-                emitISTORE(ast.I);
-            }
-        frame.pop();
+    // Check type of local variable declaration
+    if (ast.T.isArrayType()) {
+        // Array declaration
+        ArrayType arrayType = (ArrayType) ast.T;
+        Type elementType = arrayType.T; // get element type
+
+        // 1. Push array size onto stack
+        IntLiteral arraySizeLiteral = ((IntExpr) arrayType.E).IL;
+        int arraySize = Integer.parseInt(arraySizeLiteral.spelling);
+        emitICONST(arraySize);
+        frame.push(); // Stack: ..., arraySize
+
+        // 2. Create array of the appropriate type
+        if (elementType.isIntType() || elementType.isBooleanType()) {
+            emit(JVM.NEWARRAY, "int"); // Stack: ..., arrayRef (Consumes size and pushes arrayRef)
+        } else if (elementType.isFloatType()) {
+            emit(JVM.NEWARRAY, "float"); // Stack: ..., arrayRef (Consumes size and pushes arrayRef)
         }
-    } else {
-        if(ast.E.type.isArrayType()){
-            IntLiteral arraySize = ((IntExpr)((ArrayType) ast.T).E).IL;
-            String arraySizeStr = arraySize.spelling;
-            emitICONST(Integer.parseInt(arraySizeStr)); // Push array size
-            // Check type of array local variable declaration
-            if (ast.T.isIntType() || ast.T.isBooleanType()) {
-                emit(JVM.NEWARRAY, "int"); // addresses on stack
-            } else if (ast.T.isFloatType()) {
-                emit(JVM.NEWARRAY, "float"); // addresses on stack
+
+        // Check if array declaration has an array initialiser (e.g. int a[3] = {1, 2, 3};)
+        if (!ast.E.isEmptyExpr()) {
+            if (ast.E instanceof ArrayInitExpr) {
+                // need arrayRef on stack before visiting array initialiser
+                emit(JVM.DUP); // Duplicate arrayRef
+                frame.push(); // Stack: ..., arrayRef, arrayRef
+
+                // Pass frame to initialiser visitor (i.e. visitArrayInitExpr, visitArrayExprList)
+                // visitArrayInitExpr and visitArrayExprList will use duped arrayRef to populate
+                // the array with initial values and then consume it
+                ast.E.visit(this, o); // Visit array initialiser (ArrayInitExpr)
+
+                // After visit, initialiser should have consumed the DUPed arrayRef
+                // Stack: ..., arrayRef
             }
-            emit(JVM.ASTORE, ast.index); // Store reference in local variable
-            frame.pop();
+        }
+        // else: No initialiser, just store the newly created (zeroed) array reference
+        emit(JVM.ASTORE, ast.index);
+        frame.pop(); // Stack: ...
+    
+    } else { // is scalar type
+        if (!ast.E.isEmptyExpr()) {
+            // Initialise local variable
+            ast.E.visit(this, o); // Evaluate expression, leaves value on stack
+            if (ast.T.isFloatType()) {
+                emitFSTORE(ast.I); // Emit FSTORE index
+            } else { // Int or boolean
+                emitISTORE(ast.I); // Emit ISTORE index
+            }
+            frame.pop(); // Pop value from stack
         }
     }
+
+    // if (!ast.E.isEmptyExpr()) {
+    //     // If expression is array initialisation, leave reference on stack
+    //     if (ast.T.isArrayType()) {
+    //         IntLiteral arraySize = ((IntExpr)((ArrayType) ast.T).E).IL;
+    //         String arraySizeStr = arraySize.spelling;
+    //         emitICONST(Integer.parseInt(arraySizeStr)); // Push array size
+    //         // Check type of array local variable declaration
+    //         if (ast.T.isIntType() || ast.T.isBooleanType()) {
+    //             emit(JVM.NEWARRAY, "int"); // addresses on stack
+    //         } else if (ast.T.isFloatType()) {
+    //             emit(JVM.NEWARRAY, "float"); // addresses on stack
+    //         }
+    //         ast.E.visit(this, o);
+    //         emit(JVM.ASTORE, ast.index); // Store reference in local variable
+    //         frame.pop();
+    //     } else { // Scalar case
+    //         ast.E.visit(this, o);
+    //         if (ast.T.equals(StdEnvironment.floatType)) {
+    //             emitFSTORE(ast.I);
+    //         } else {
+    //             emitISTORE(ast.I);
+    //         }
+    //     frame.pop();
+    //     }
+    // } else {
+    //     if (ast.E.type.isArrayType()) {
+    //         IntLiteral arraySize = ((IntExpr)((ArrayType) ast.T).E).IL;
+    //         String arraySizeStr = arraySize.spelling;
+    //         emitICONST(Integer.parseInt(arraySizeStr)); // Push array size
+    //         // Check type of array local variable declaration
+    //         if (ast.T.isIntType() || ast.T.isBooleanType()) {
+    //             emit(JVM.NEWARRAY, "int"); // addresses on stack
+    //         } else if (ast.T.isFloatType()) {
+    //             emit(JVM.NEWARRAY, "float"); // addresses on stack
+    //         }
+    //         emit(JVM.ASTORE, ast.index); // Store reference in local variable
+    //         frame.pop();
+    //     }
+    // }
 
     return null;
 }
 
 // Arrays
-public Object visitArrayExprList(ArrayExprList ast, Object o) {
-    Frame frame = (Frame) o;
-    emit(JVM.DUP);
-    emitICONST(currentArrayIndex);
-    frame.push();
-    currentArrayIndex++;
-    ast.E.visit(this, o);
-    if (ast.E.type.isIntType() || ast.E.type.isBooleanType()) {
-        emit(JVM.IASTORE);
-    } else if (ast.E.type.isFloatType()) {
-        emit(JVM.FASTORE);
-    }
-    frame.pop(3);
-    ast.EL.visit(this, o);
-    return null;
-}
-
 public Object visitArrayInitExpr(ArrayInitExpr ast, Object o) {
+    // Stack: ..., arrayRef, arrayRef
     Frame frame = (Frame) o;
     currentArrayIndex = 0;
     ast.IL.visit(this, o);
+    return null;
+}
+
+public Object visitArrayExprList(ArrayExprList ast, Object o) {
+    Frame frame = (Frame) o;
+    // Stack: ..., arrayRef, arrayRef_duped
+    Type elementType = ast.E.type;
+
+    // Dup the duped arrayRef. One for current xASTORE and one for next element
+    emit(JVM.DUP); // Stack: ..., arrayRef, arrayRef_duped, arrayRef_duped
+    frame.push(); // Stack: ..., arrayRef, arrayRef_duped, arrayRef_duped1
+
+    // Push current array index onto stack
+    emitICONST(currentArrayIndex);
+    frame.push(); // Stack: ..., arrayRef, arrayRef_duped, arrayRef_duped1, currentArrayIndex
+    currentArrayIndex++; // Increment index for next element
+        
+    ast.E.visit(this, o); // Visit element expression
+    // Stack: ..., arrayRef, arrayRef_duped, arrayRef_duped1 currentArrayIndex, value
+
+    // Store value into array at current index
+    if (elementType.isIntType() || elementType.isBooleanType()) {
+        emit(JVM.IASTORE); // Consumes arrayRef_duped1, currentArrayIndex, value
+    } else if (elementType.isFloatType()) {
+        emit(JVM.FASTORE); // Consumes arrayRef_duped1, currentArrayIndex, value
+    } else {
+        emit(JVM.AASTORE); // Consumes arrayRef_duped1, currentArrayIndex, value
+    }
+    frame.pop(3); // Pop arrayRef_dup, currentArrayIndex, value
+    // Stack: ..., arrayRef, arrayRef_duped
+
+    // emit(JVM.DUP);
+    // emitICONST(currentArrayIndex);
+    // frame.push();
+    // currentArrayIndex++;
+    // ast.E.visit(this, o);
+    // if (ast.E.type.isIntType() || ast.E.type.isBooleanType()) {
+    //     emit(JVM.IASTORE);
+    // } else if (ast.E.type.isFloatType()) {
+    //     emit(JVM.FASTORE);
+    // }
+    // frame.pop(3);
+    // ast.EL.visit(this, o);
     return null;
 }
 
