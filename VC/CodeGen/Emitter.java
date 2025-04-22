@@ -264,7 +264,7 @@ public Object visitIfStmt(IfStmt ast, Object o) {
 
     // If condition is false (0), jump to else part
     emit(JVM.IFEQ, elseLabel);
-    frame.pop();
+    // frame.pop();
 
     // "Then" part
     ast.S1.visit(this, o);
@@ -485,6 +485,7 @@ public Object visitAssignExpr(AssignExpr ast, Object o) {
 public Object visitCallExpr(CallExpr ast, Object o) {
     Frame frame = (Frame) o;
     String fname = ast.I.spelling;
+    int squareBrackets = 0;
 
     if (fname.equals("getInt")) {
     	ast.AL.visit(this, o); // push args (if any) into the op stack
@@ -556,14 +557,16 @@ public Object visitCallExpr(CallExpr ast, Object o) {
         	argsTypes.append("Z");         
             else if (((ParaList) fpl).P.T.equals(StdEnvironment.intType))
         	argsTypes.append("I");         
-            else
+            else if (((ParaList) fpl).P.T.equals(StdEnvironment.floatType))
         	argsTypes.append("F");         
-
+            else if (((ParaList) fpl).P.T.isArrayType()) 
+            argsTypes.append("[" + VCtoJavaType(((ArrayType) ((ParaList) fpl).P.T).T));
+            squareBrackets++;
             fpl = ((ParaList) fpl).PL;
      	}
     
     	emit("invokevirtual", classname + "/" + fname + "(" + argsTypes + ")" + retType);
-    	frame.pop(argsTypes.length() + 1);
+    	frame.pop(argsTypes.length() + 1 - squareBrackets);
 
     	if (! retType.equals("V"))
             frame.push();
@@ -670,13 +673,6 @@ public Object visitBinaryExpr(BinaryExpr ast, Object o) {
             case "i-": emit(JVM.ISUB); break;
             case "i*": emit(JVM.IMUL); break;
             case "i/": emit(JVM.IDIV); break;
-            // Comparision yields boolean (0 or 1)
-            case "i==": emitIF_ICMPCOND("i==", frame); return null;
-            case "i!=": emitIF_ICMPCOND("i!=", frame); return null;
-            case "i<": emitIF_ICMPCOND("i<", frame); return null;
-            case "i<=": emitIF_ICMPCOND("i<=", frame); return null;
-            case "i>": emitIF_ICMPCOND("i>", frame); return null;
-            case "i>=": emitIF_ICMPCOND("i>=", frame); return null;
         }
         frame.pop(); 
     } else if (resultType.isFloatType()) {
@@ -685,6 +681,18 @@ public Object visitBinaryExpr(BinaryExpr ast, Object o) {
             case "f-": emit(JVM.FSUB); break;
             case "f*": emit(JVM.FMUL); break;
             case "f/": emit(JVM.FDIV); break;
+        }
+        frame.pop();
+    } else if (resultType.isBooleanType()) {
+        // ==, != for booleans treated as integers
+        switch (op) {
+            // Comparision yields boolean (0 or 1)
+            case "i==": emitIF_ICMPCOND("i==", frame); return null;
+            case "i!=": emitIF_ICMPCOND("i!=", frame); return null;
+            case "i<": emitIF_ICMPCOND("i<", frame); return null;
+            case "i<=": emitIF_ICMPCOND("i<=", frame); return null;
+            case "i>": emitIF_ICMPCOND("i>", frame); return null;
+            case "i>=": emitIF_ICMPCOND("i>=", frame); return null;
             // Comparision yields boolean (0 or 1)
             case "f==": emitFCMP("f==", frame); return null;
             case "f!=": emitFCMP("f!=", frame); return null;
@@ -692,13 +700,6 @@ public Object visitBinaryExpr(BinaryExpr ast, Object o) {
             case "f<=": emitFCMP("f<=", frame); return null;
             case "f>": emitFCMP("f>", frame); return null;
             case "f>=": emitFCMP("f>=", frame); return null;
-        }
-        frame.pop();
-    } else if (resultType.isBooleanType()) {
-        // ==, != for booleans treated as integers
-        switch (op) {
-            case "i==": emitIF_ICMPCOND("i==", frame); return null;
-            case "i!=": emitIF_ICMPCOND("i!=", frame); return null;
         }
         frame.pop();
     }
@@ -819,8 +820,13 @@ public Object visitFuncDecl(FuncDecl ast, Object o) {
         	argsTypes.append("Z");         
             else if (((ParaList) fpl).P.T.equals(StdEnvironment.intType))
         	argsTypes.append("I");         
-            else
+            else if (((ParaList) fpl).P.T.equals(StdEnvironment.floatType))
         	argsTypes.append("F");         
+            else if (((ParaList) fpl).P.T.isArrayType()) {
+                Type elementType  = ((ArrayType) ((ParaList) fpl).P.T).T; // get element type
+                argsTypes.append("[" + VCtoJavaType(elementType));
+            }
+            
         fpl = ((ParaList) fpl).PL;
     }
 
@@ -869,13 +875,14 @@ public Object visitLocalVarDecl(LocalVarDecl ast, Object o) {
     ast.index = frame.getNewIndex();
     String T = VCtoJavaType(ast.T);
 
-    emit(JVM.VAR + " " + ast.index + " is " + ast.I.spelling + " " + T + " from " + (String) frame.scopeStart.peek() + " to " +  (String) frame.scopeEnd.peek());
+    
 
     // Check type of local variable declaration
     if (ast.T.isArrayType()) {
         // Array declaration
         ArrayType arrayType = (ArrayType) ast.T;
         Type elementType = arrayType.T; // get element type
+        emit(JVM.VAR + " " + ast.index + " is " + ast.I.spelling + " [" + VCtoJavaType(elementType) + " from " + (String) frame.scopeStart.peek() + " to " +  (String) frame.scopeEnd.peek());
 
         // 1. Push array size onto stack
         IntLiteral arraySizeLiteral = ((IntExpr) arrayType.E).IL;
@@ -911,6 +918,7 @@ public Object visitLocalVarDecl(LocalVarDecl ast, Object o) {
         frame.pop(); // Stack: ...
     
     } else { // is scalar type
+        emit(JVM.VAR + " " + ast.index + " is " + ast.I.spelling + " " + T + " from " + (String) frame.scopeStart.peek() + " to " +  (String) frame.scopeEnd.peek());
         if (!ast.E.isEmptyExpr()) {
             // Initialise local variable
             ast.E.visit(this, o); // Evaluate expression, leaves value on stack
@@ -1014,7 +1022,7 @@ public Object visitArrayExprList(ArrayExprList ast, Object o) {
     //     emit(JVM.FASTORE);
     // }
     // frame.pop(3);
-    // ast.EL.visit(this, o);
+    ast.EL.visit(this, o);
     return null;
 }
 
@@ -1025,7 +1033,7 @@ public Object visitArrayExpr(ArrayExpr ast, Object o) {
 
     if (arrayExprDecl.isLocalVarDecl() || arrayExprDecl.isParaDecl()) {
         int index = (arrayExprDecl).index; // local variable index
-        Type elementType = arrayExprDecl.T;
+        Type elementType = ((ArrayType)arrayExprDecl.T).T;
 
         emit(JVM.ALOAD, index); // Load array reference
         frame.push();
@@ -1074,7 +1082,17 @@ public Object visitParaDecl(ParaDecl ast, Object o) {
     ast.index = frame.getNewIndex();
     String T = VCtoJavaType(ast.T);
 
-    emit(JVM.VAR + " " + ast.index + " is " + ast.I.spelling + " " + T + " from " + (String) frame.scopeStart.peek() + " to " +  (String) frame.scopeEnd.peek());
+    // Check type of parameter declaration
+    if (ast.T.isArrayType()) {
+        // Array declaration
+        ArrayType arrayType = (ArrayType) ast.T;
+        Type elementType = arrayType.T; // get element type
+        emit(JVM.VAR + " " + ast.index + " is " + ast.I.spelling + " [" + VCtoJavaType(elementType) + " from " + (String) frame.scopeStart.peek() + " to " +  (String) frame.scopeEnd.peek());
+    } else { // is scalar type
+        emit(JVM.VAR + " " + ast.index + " is " + ast.I.spelling + " " + T + " from " + (String) frame.scopeStart.peek() + " to " +  (String) frame.scopeEnd.peek());
+    }
+
+    
     return null;
 }
 
