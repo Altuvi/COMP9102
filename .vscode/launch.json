@@ -16,7 +16,7 @@
       "request": "launch",
       "mainClass": "VC.vc",
       "projectName": "COMP9102_974ca5de",
-      "args": "VC/Checker/test.vc"
+      "args": "max.vc"
     }
   ]
 }

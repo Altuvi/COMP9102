@@ -247,7 +247,7 @@ must be translated into a RETURN rather than IRETURN instruction.
 public Object visitExprStmt(ExprStmt ast, Object o) {
     Frame frame = (Frame) o;
     ast.E.visit(this, o);
-    if (!ast.E.type.isVoidType()) {
+    if (ast.E.type != null && !ast.E.type.isVoidType()) {
         emit(JVM.POP);
         frame.pop();
     }
